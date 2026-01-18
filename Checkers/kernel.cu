@@ -181,22 +181,100 @@ Board endBoard() {
 
 }
 
+Board backCapture() {
+	Board b;
+	b.white_pawns = 0x02020202;
+	b.white_kings = 0;
+	b.black_pawns = 0x20202020;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
 
-void checkCapture(char index, Board* b, char new_index, char hop) {
-	if (index + hop >= 0) {
-		// czarny prawa gora
-		if ((b->occupied_black & (1 << index + hop))) {
-			// nie wyjdzie poza plansze
-			if (new_index >= 0 && (new_index / 4) % 2 == (index / 4) % 2) {
-				if (!(b->occupied_total & (1 << new_index))) {
-					printf("%d Capture R\n", index);
-				}
-			}
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board firstRow() {
+	Board b;
+	b.white_pawns = 0x10101010;
+	b.white_kings = 0;
+	b.black_pawns = 0x08080808;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board lastRow1() {
+	Board b;
+	b.white_pawns = 0x08080808;
+	b.white_kings = 0;
+	b.black_pawns = 0x01010101;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board lastRow2() {
+	Board b;
+	b.white_pawns = 0x08080808;
+	b.white_kings = 0;
+	b.black_pawns = 0x10101010;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+__device__ void checkCaptureOfBlack(Board* b, char from, char with, char to) {
+	// chyba bez?
+	/*if(with < 0 || with >= 32) {
+		return;
+	}*/
+
+	if (from < 0 || to >= 32) {
+		return;
+	}
+
+	if (from / 4 % 2 != to / 4 % 2) {
+		return;
+	}
+
+	if ((b->occupied_black & (1 << with))) {
+		if (!(b->occupied_total & (1 << to))) {
+			printf("%d Capture F\n", from);
 		}
-		//// pusto prawa gora
-		//else if (!(b->occupied_white & (1 << (index + hop)))) {
-		//	board[index]++; }
-		
 	}
 }
 
@@ -210,7 +288,7 @@ __global__ void checkersKernel(Board* b,  char* ret)
 	int x = index / 4;
 	int y = (index % 4) ;
 	int offset = 1 -  x % 2;
-	char hop;
+	char with;
 
 	while (true)
 	{
@@ -219,36 +297,45 @@ __global__ void checkersKernel(Board* b,  char* ret)
 			if (!(b->occupied_white & 1 << index)) {
 				break;
 			}
-			hop = - 4 + offset;
-			if (index + hop >= 0) {
-				// czarny prawa gora
-				if ((b->occupied_black & (1 << index + hop))) {
-					// nie wyjdzie poza plansze
-					if (index - 7 >= 0 && ((index - 7) / 4) % 2 == (index / 4) % 2) {
-						if (!(b->occupied_total & (1 << index - 7))) {
-							printf("%d Capture R\n", index);
-						}
+
+
+			with = index - 4 + offset;
+			if (((with / 4) % 2) != (index / 4) % 2) {// nie mozna zlaczyc bo on jest zwiazny z drugim warunkiem
+				if (with > 0 && with < 32) {
+					if (!(b->occupied_total & (1 << with))) {
+						board[index]++;
 					}
-				}
-				// pusto prawa gora
-				else if (!(b->occupied_white & (1 << (index + hop)))) {
-					board[index]++;
 				}
 			}
 
-			hop = 4 + offset;
-			if ((index + hop) < 32) {
-				if ((b->occupied_black & 1 << (index + hop))) {
-					if (index + 9 < 32 && ((index + 9) / 4) % 2 == (index / 4) % 2) {
-						if (!(b->occupied_total & (1 << index + 9))) {
-							printf("%d Capture L\n", index);
-						}
+			with = index + 4 + offset;
+			if (((with / 4) % 2) != (index / 4) % 2) {
+				if (with > 0 && with < 32) {
+					if (!(b->occupied_total & (1 << with))) {
+						board[index]++;
 					}
 				}
-				else if (!(b->occupied_white & 1 << (index + hop))) {
-					board[index]++;
-				}
 			}
+			
+			
+
+			// prawa gora
+			with = index - 4 + offset;
+			checkCaptureOfBlack(b, index, with, index - 7);
+
+			// lewa gora
+			with = index + 4 + offset;
+			checkCaptureOfBlack(b, index, with, index + 9);
+
+			// prawy tyl
+			with = index - 5 + offset;
+			checkCaptureOfBlack(b, index, with, index - 9);
+
+			// lewy tyl
+			with = index + 3 + offset;
+			checkCaptureOfBlack(b, index, with, index + 7);
+
+			
 
 			printf("%d : board: %d\n", index, board[index]);
 
@@ -329,7 +416,7 @@ Error:
 
 int main()
 {	
-	Board board = endBoard();
+	Board board = firstRow();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
