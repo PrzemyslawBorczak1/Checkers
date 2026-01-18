@@ -297,6 +297,115 @@ Board cycleBoard2() {
 
 
 
+
+
+
+
+
+
+__device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black);
+
+#define MAX_CAPTURE_DEPTH 12
+
+__device__ __constant__ const int8_t WITH_OFFSETS[4] = { -4, 4, -5, 3 };
+__device__ __constant__ const int8_t DEST_OFFSETS[4] = { -7, 9, -9, 7 };
+
+struct SearchState {
+	char index;
+	uint32_t occupied_black;
+	char depth;
+	uint8_t stage;
+};
+
+//__device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
+//	if (to < 0 || to >= 32) return false;
+//	if (from / 4 % 2 != to / 4 % 2) return false;
+//	if ((occupied_black & (1 << with))) {
+//		if (!(occupied_total & (1 << to))) {
+//			return true;
+//		}
+//	}
+//	return false;
+//}
+
+__device__ void findCapturesForWhiteOptimized(Board* b, char startIndex, char offset, uint32_t startOccupiedTotal, uint32_t startOccupiedBlack, char startDepth) {
+
+	SearchState stack[MAX_CAPTURE_DEPTH];
+	int sp = 0;
+
+	stack[0].index = startIndex;
+	stack[0].occupied_black = startOccupiedBlack;
+	stack[0].depth = startDepth;
+	stack[0].stage = 0;
+
+	while (sp >= 0) {
+		SearchState* current = &stack[sp];
+
+		if (current->stage >= 8) {
+			sp--;
+			continue;
+		}
+
+		int dir_idx = current->stage / 2;
+		bool is_return = current->stage % 2;
+
+		char idx = current->index;
+		char with = idx + WITH_OFFSETS[dir_idx] + offset;
+		char dest = idx + DEST_OFFSETS[dir_idx];
+
+		if (!is_return) {
+			if (checkCaptureForWhite(b, idx, with, dest, startOccupiedTotal, current->occupied_black)) {
+				current->stage++;
+
+				sp++;
+				if (sp > MAX_CAPTURE_DEPTH) {
+					printf("Stack Overflow\n");
+				}
+				stack[sp].index = dest;
+				stack[sp].occupied_black = current->occupied_black ^ (1 << with);
+				stack[sp].depth = current->depth + 1;
+				stack[sp].stage = 0;
+			}
+			else {
+				current->stage += 2;
+			}
+		}
+		else {
+			printf("%d Capture with %d to %d depth: %d\n", idx, with, dest, current->depth);
+			current->stage++;
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 __device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
 	// chyba bez?
 	/*if(with < 0 || with >= 32) {
@@ -319,46 +428,6 @@ __device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, ui
 	return false;
 }
 
-
-__device__ bool findCapturesForWhite(Board* b, char index, char offset, uint32_t occupied_total, uint32_t occupied_black, char depth) {
-	
-
-	// prawa gora
-	char with = index - 4 + offset;
-	if (checkCaptureForWhite(b, index, with, index - 7, occupied_total, occupied_black)) {
-		findCapturesForWhite(b, index - 7, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
-
-		printf("%d Capture with %d to %d depth: %d\n", index, with, index - 7, depth);
-	}
-
-	// lewa gora
-	with = index + 4 + offset;
-	if (checkCaptureForWhite(b, index, with, index + 9, occupied_total, occupied_black)) {
-		findCapturesForWhite(b, index + 9, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
-
-
-		printf("%d Capture with %d to %d depth: %d\n", index, with, index + 9, depth);
-	}
-
-	// prawy tyl
-	with = index - 5 + offset;
-	if (checkCaptureForWhite(b, index, with, index - 9, occupied_total, occupied_black)) {
-		findCapturesForWhite(b, index - 9, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
-
-
-		printf("%d Capture with %d to %d depth: %d\n", index, with, index - 9, depth);
-	}
-
-	// lewy tyl
-	with = index + 3 + offset;
-	if (checkCaptureForWhite(b, index, with, index + 7, occupied_total, occupied_black)) {
-		findCapturesForWhite(b, index + 7, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
-
-
-		printf("%d Capture with %d to %d depth: %d\n", index, with, index + 7, depth);
-	}
-
-}
 
 __global__ void checkersKernel(Board* b,  char* ret)
 {
@@ -400,7 +469,7 @@ __global__ void checkersKernel(Board* b,  char* ret)
 			}
 			
 			
-			findCapturesForWhite(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black, 0);
+			findCapturesForWhiteOptimized(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black, 0);
 			
 
 			printf("%d : board: %d\n", index, board[index]);
