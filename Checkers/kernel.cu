@@ -32,7 +32,7 @@ struct Board {
 };
 
 
-void writeBoardToBuff(char buffer[72], uint32_t board, char c) {
+__host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char c) {
 	int x = 0;
 	int y = 1;
 	int pos = 0;
@@ -88,7 +88,7 @@ void printBoard(Board board) {
 
 }
 
-void print_int(uint32_t n) {
+__host__ __device__ void print_int(uint32_t n) {
 	char buffer[72];
 	memset(buffer, '_', 72);
 
@@ -257,25 +257,107 @@ Board lastRow2() {
 	return b;
 }
 
-__device__ void checkCaptureOfBlack(Board* b, char from, char with, char to) {
+Board cycleBoard1() {
+	Board b;
+	b.white_pawns = 0x00000100;
+	b.white_kings = 0;
+	b.black_pawns = 0x00C0A060;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board cycleBoard2() {
+	Board b;
+	b.white_pawns = 0x00000800;
+	b.white_kings = 0;
+	b.black_pawns = 0x0060A0C0;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+
+
+__device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
 	// chyba bez?
 	/*if(with < 0 || with >= 32) {
 		return;
 	}*/
 
-	if (from < 0 || to >= 32) {
-		return;
+	if (to < 0 || to >= 32) {
+		return false;
 	}
 
 	if (from / 4 % 2 != to / 4 % 2) {
-		return;
+		return false;
 	}
 
-	if ((b->occupied_black & (1 << with))) {
-		if (!(b->occupied_total & (1 << to))) {
-			printf("%d Capture F\n", from);
+	if ((occupied_black & (1 << with))) {
+		if (!(occupied_total & (1 << to))) {
+			return true;
 		}
 	}
+	return false;
+}
+
+
+__device__ bool findCapturesForWhite(Board* b, char index, char offset, uint32_t occupied_total, uint32_t occupied_black, char depth) {
+	
+
+	// prawa gora
+	char with = index - 4 + offset;
+	if (checkCaptureForWhite(b, index, with, index - 7, occupied_total, occupied_black)) {
+		findCapturesForWhite(b, index - 7, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
+
+		printf("%d Capture with %d to %d depth: %d\n", index, with, index - 7, depth);
+	}
+
+	// lewa gora
+	with = index + 4 + offset;
+	if (checkCaptureForWhite(b, index, with, index + 9, occupied_total, occupied_black)) {
+		findCapturesForWhite(b, index + 9, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
+
+
+		printf("%d Capture with %d to %d depth: %d\n", index, with, index + 9, depth);
+	}
+
+	// prawy tyl
+	with = index - 5 + offset;
+	if (checkCaptureForWhite(b, index, with, index - 9, occupied_total, occupied_black)) {
+		findCapturesForWhite(b, index - 9, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
+
+
+		printf("%d Capture with %d to %d depth: %d\n", index, with, index - 9, depth);
+	}
+
+	// lewy tyl
+	with = index + 3 + offset;
+	if (checkCaptureForWhite(b, index, with, index + 7, occupied_total, occupied_black)) {
+		findCapturesForWhite(b, index + 7, offset, occupied_total, occupied_black ^ (1 << with), depth + 1);
+
+
+		printf("%d Capture with %d to %d depth: %d\n", index, with, index + 7, depth);
+	}
+
 }
 
 __global__ void checkersKernel(Board* b,  char* ret)
@@ -318,23 +400,7 @@ __global__ void checkersKernel(Board* b,  char* ret)
 			}
 			
 			
-
-			// prawa gora
-			with = index - 4 + offset;
-			checkCaptureOfBlack(b, index, with, index - 7);
-
-			// lewa gora
-			with = index + 4 + offset;
-			checkCaptureOfBlack(b, index, with, index + 9);
-
-			// prawy tyl
-			with = index - 5 + offset;
-			checkCaptureOfBlack(b, index, with, index - 9);
-
-			// lewy tyl
-			with = index + 3 + offset;
-			checkCaptureOfBlack(b, index, with, index + 7);
-
+			findCapturesForWhite(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black, 0);
 			
 
 			printf("%d : board: %d\n", index, board[index]);
@@ -393,13 +459,13 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "checkersKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto Error;
 	}
 
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching checkersKernel!\n", cudaStatus);
 		goto Error;
 	}
 
@@ -416,7 +482,7 @@ Error:
 
 int main()
 {	
-	Board board = firstRow();
+	Board board = cycleBoard2();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
