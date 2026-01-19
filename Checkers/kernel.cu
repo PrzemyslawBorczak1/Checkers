@@ -295,86 +295,23 @@ Board cycleBoard2() {
 	return b;
 }
 
+Board kingBoard() {
+	Board b;
+	b.white_pawns = 0x00000000;
+	b.white_kings = 0x10000000;
+	b.black_pawns = 0x07014180;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
 
 
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
 
-
-
-
-
-
-__device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black);
-
-#define MAX_CAPTURE_DEPTH 12
-
-__device__ __constant__ const int8_t WITH_OFFSETS[4] = { -4, 4, -5, 3 };
-__device__ __constant__ const int8_t DEST_OFFSETS[4] = { -7, 9, -9, 7 };
-
-struct SearchState {
-	char index;
-	uint32_t occupied_black;
-	char depth;
-	uint8_t stage;
-};
-
-//__device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
-//	if (to < 0 || to >= 32) return false;
-//	if (from / 4 % 2 != to / 4 % 2) return false;
-//	if ((occupied_black & (1 << with))) {
-//		if (!(occupied_total & (1 << to))) {
-//			return true;
-//		}
-//	}
-//	return false;
-//}
-
-__device__ void findCapturesForWhiteOptimized(Board* b, char startIndex, char offset, uint32_t startOccupiedTotal, uint32_t startOccupiedBlack, char startDepth) {
-
-	SearchState stack[MAX_CAPTURE_DEPTH];
-	int sp = 0;
-
-	stack[0].index = startIndex;
-	stack[0].occupied_black = startOccupiedBlack;
-	stack[0].depth = startDepth;
-	stack[0].stage = 0;
-
-	while (sp >= 0) {
-		SearchState* current = &stack[sp];
-
-		if (current->stage >= 8) {
-			sp--;
-			continue;
-		}
-
-		int dir_idx = current->stage / 2;
-		bool is_return = current->stage % 2;
-
-		char idx = current->index;
-		char with = idx + WITH_OFFSETS[dir_idx] + offset;
-		char dest = idx + DEST_OFFSETS[dir_idx];
-
-		if (!is_return) {
-			if (checkCaptureForWhite(b, idx, with, dest, startOccupiedTotal, current->occupied_black)) {
-				current->stage++;
-
-				sp++;
-				if (sp > MAX_CAPTURE_DEPTH) {
-					printf("Stack Overflow\n");
-				}
-				stack[sp].index = dest;
-				stack[sp].occupied_black = current->occupied_black ^ (1 << with);
-				stack[sp].depth = current->depth + 1;
-				stack[sp].stage = 0;
-			}
-			else {
-				current->stage += 2;
-			}
-		}
-		else {
-			printf("%d Capture with %d to %d depth: %d\n", idx, with, dest, current->depth);
-			current->stage++;
-		}
-	}
+	return b;
 }
 
 
@@ -384,27 +321,16 @@ __device__ void findCapturesForWhiteOptimized(Board* b, char startIndex, char of
 
 
 
+#define MAX_CAPTURE_DEPTH 12
 
+__device__ __constant__ const int8_t WITH_OFFSETS[4] = { -4, 4, -5, 3 };
+__device__ __constant__ const int8_t DEST_OFFSETS[4] = { -7, 9, -9, 7 };
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+struct SearchState {
+	char index;
+	uint32_t occupied_black;
+	uint8_t stage;
+};
 
 __device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
 	// chyba bez?
@@ -429,9 +355,157 @@ __device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, ui
 }
 
 
+#define HAS_CHILD_BIT 0x80
+#define DIRECTION_MASK 0x0F
+
+__device__ int countWhiteCaptureLeaves(Board* b, char startIndex, char offset, uint32_t startOccupiedTotal, uint32_t startOccupiedBlack) {
+	SearchState stack[MAX_CAPTURE_DEPTH];
+	int sp = 0;
+	int leafCount = 0;
+
+	stack[0].index = startIndex;
+	stack[0].occupied_black = startOccupiedBlack;
+	stack[0].stage = 0; 
+
+	while (sp >= 0) {
+		SearchState* current = &stack[sp];
+		int dir = (current->stage & DIRECTION_MASK);
+
+		if (dir < 4) {
+			current->stage++;
+
+			char idx = current->index;
+			char with = idx + WITH_OFFSETS[dir] + offset;
+			char dest = idx + DEST_OFFSETS[dir];
+
+			if (checkCaptureForWhite(b, idx, with, dest, startOccupiedTotal, current->occupied_black)) {
+				current->stage |= HAS_CHILD_BIT;
+
+				sp++;
+				if (sp < MAX_CAPTURE_DEPTH) {
+					stack[sp].index = dest;
+					stack[sp].occupied_black = current->occupied_black ^ (1 << with);
+					stack[sp].stage = 0; 
+				}
+			}
+		}
+		else {
+			if (!(current->stage & HAS_CHILD_BIT) && sp > 0) {
+				leafCount++;
+			}
+			sp--;
+		}
+	}
+
+	return leafCount;
+}
+
+
+
+#define HAS_CHILD_BIT 0x80
+#define DIR_MASK 0x07
+#define LANDING_MASK 0x70 // To track which landing square we are on
+
+__device__ int getNextSquare(int sq, int dir) {
+	// Standard 32-bit board diagonal sliding
+	// dir: 0=NE(-4/-3), 1=SE(4/5), 2=SW(3/4), 3=NW(-5/-4)
+	int row = sq >> 2;
+	bool isRowEven = (row & 1) == 0;
+
+	int next;
+	if (dir == 0) next = isRowEven ? sq - 4 : sq - 3;
+	else if (dir == 1) next = isRowEven ? sq + 4 : sq + 5;
+	else if (dir == 2) next = isRowEven ? sq + 3 : sq + 4;
+	else next = isRowEven ? sq - 5 : sq - 4;
+
+	// Boundary check: row must change by exactly 1 and be within 0-31
+	int nextRow = next >> 2;
+	if (next < 0 || next >= 32 || abs(nextRow - row) != 1) return -1;
+	return next;
+}
+
+__device__ int countFlyingKingLeaves(uint32_t startOccTotal, uint32_t startOccBlack, char startIndex) {
+	SearchState stack[MAX_CAPTURE_DEPTH];
+	int sp = 0;
+	int leafCount = 0;
+
+	stack[0].index = startIndex;
+	stack[0].occupied_black = startOccBlack;
+	stack[0].stage = 0; // Bits: [Empty][LandingIdx:3][DirIdx:3] \
+
+	while (sp >= 0) {
+		SearchState* curr = &stack[sp];
+		int dir = curr->stage & DIR_MASK;
+
+		if (dir < 4) {
+			bool foundCaptureInDir = false;
+			int scan = curr->index;
+
+			// 1. Slide to find the first piece in this direction
+			while ((scan = getNextSquare(scan, dir)) != -1) {
+				uint32_t bit = (1 << scan);
+				if (startOccTotal & bit) {
+					// If it's an opponent piece and not already captured in this sequence
+					if (curr->occupied_black & bit) {
+
+						// 2. We found an enemy! Now check landing squares behind it
+						int land = scan;
+						int landingCount = 0;
+						int targetLanding = (curr->stage & LANDING_MASK) >> 4;
+
+						while ((land = getNextSquare(land, dir)) != -1) {
+							if (startOccTotal & (1 << land)) break; // Blocked by another piece
+
+							// If this is the specific landing square we are currently exploring
+							if (landingCount == targetLanding) {
+								curr->stage |= HAS_CHILD_BIT; // Mark parent as branched
+
+								// Push new state
+								sp++;
+								stack[sp].index = land;
+								stack[sp].occupied_black = curr->occupied_black ^ bit;
+								stack[sp].stage = 0;
+
+								// Increment landing index for when we return to the parent
+								curr->stage = (dir) | ((targetLanding + 1) << 4) | (curr->stage & HAS_CHILD_BIT);
+								foundCaptureInDir = true;
+								break;
+							}
+							landingCount++;
+						}
+
+						// If we've exhausted landing squares for this specific enemy
+						if (!foundCaptureInDir) {
+							curr->stage = (dir + 1) | (0 << 4) | (curr->stage & HAS_CHILD_BIT);
+						}
+					}
+					else {
+						// Hit own piece, direction blocked
+						curr->stage = (dir + 1) | (0 << 4) | (curr->stage & HAS_CHILD_BIT);
+					}
+					break;
+				}
+			}
+			// If the diagonal was empty or we reached the edge without hitting anything
+			if (scan == -1) {
+				curr->stage = (dir + 1) | (0 << 4) | (curr->stage & HAS_CHILD_BIT);
+			}
+		}
+		else {
+			// Leaf logic: if this node never successfully pushed a child, it's a leaf
+			if (!(curr->stage & HAS_CHILD_BIT) && sp > 0) {
+				leafCount++;
+			}
+			sp--;
+		}
+	}
+	return leafCount;
+}
+
+
+
 __global__ void checkersKernel(Board* b,  char* ret)
 {
-
 	__shared__ char board[32];
 
 	int index = threadIdx.x;
@@ -468,11 +542,19 @@ __global__ void checkersKernel(Board* b,  char* ret)
 				}
 			}
 			
-			
-			findCapturesForWhiteOptimized(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black, 0);
-			
+			if (b->white_pawns & 1 << index) {
+				char mv = countWhiteCaptureLeaves(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black);
 
+				printf("index %d mc: %d\n", index, mv);
+			}
 			printf("%d : board: %d\n", index, board[index]);
+
+			if(b-> white_kings & 1 << index) {
+				char mv = countFlyingKingLeaves(b->occupied_total ^ (1 << index), b->occupied_black, index);
+
+				printf("king %d mc: %d\n", index, mv);
+				//krolowa
+			}
 
 			break;
 
@@ -551,7 +633,7 @@ Error:
 
 int main()
 {	
-	Board board = cycleBoard2();
+	Board board = kingBoard();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
