@@ -520,6 +520,66 @@ Board kingCycle() {
 }
 
 
+Board kingWierd() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x01000000;
+	b.black_pawns = 0x02246420;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board kingBlocking1() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x10000000;
+	b.black_pawns = 0x04646700;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board kingBlocking2() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x10000000;
+	b.black_pawns = 0x04446700;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
 #define MAX_CAPTURE_DEPTH 12
 
 __device__ __constant__ const int8_t WITH_OFFSETS[4] = { -4, 4, -5, 3 };
@@ -601,106 +661,8 @@ __device__ int countWhiteCaptureLeaves(Board* b, char startIndex, char offset, u
 
 
 
-#define HAS_CHILD_BIT 0x80
-#define DIR_MASK 0x07
-#define LANDING_MASK 0x70 // To track which landing square we are on
-
-//__device__ int getNextSquare(int sq, int dir) {
-//	// Standard 32-bit board diagonal sliding
-//	// dir: 0=NE(-4/-3), 1=SE(4/5), 2=SW(3/4), 3=NW(-5/-4)
-//	int row = sq >> 2;
-//	bool isRowEven = (row & 1) == 0;
-//
-//	int next;
-//	if (dir == 0) next = isRowEven ? sq - 4 : sq - 3;
-//	else if (dir == 1) next = isRowEven ? sq + 4 : sq + 5;
-//	else if (dir == 2) next = isRowEven ? sq + 3 : sq + 4;
-//	else next = isRowEven ? sq - 5 : sq - 4;
-//
-//	// Boundary check: row must change by exactly 1 and be within 0-31
-//	int nextRow = next >> 2;
-//	if (next < 0 || next >= 32 || abs(nextRow - row) != 1) return -1;
-//	return next;
-//}
 
 
-//__device__ int countFlyingKingLeaves(uint32_t startOccTotal, uint32_t startOccBlack, char startIndex) {
-//	SearchState stack[MAX_CAPTURE_DEPTH];
-//	int sp = 0;
-//	int leafCount = 0;
-//
-//	stack[0].index = startIndex;
-//	stack[0].occupied_black = startOccBlack;
-//	stack[0].stage = 0; // Bits: [Empty][LandingIdx:3][DirIdx:3] \
-//
-//	while (sp >= 0) {
-//		SearchState* curr = &stack[sp];
-//		int dir = curr->stage & DIR_MASK;
-//
-//		if (dir < 4) {
-//			bool foundCaptureInDir = false;
-//			int scan = curr->index;
-//
-//			// 1. Slide to find the first piece in this direction
-//			while ((scan = getNextSquare(scan, dir)) != -1) {
-//				uint32_t bit = (1 << scan);
-//				if (startOccTotal & bit) {
-//					// If it's an opponent piece and not already captured in this sequence
-//					if (curr->occupied_black & bit) {
-//
-//						// 2. We found an enemy! Now check landing squares behind it
-//						int land = scan;
-//						int landingCount = 0;
-//						int targetLanding = (curr->stage & LANDING_MASK) >> 4;
-//
-//						while ((land = getNextSquare(land, dir)) != -1) {
-//							if (startOccTotal & (1 << land)) break; // Blocked by another piece
-//
-//							// If this is the specific landing square we are currently exploring
-//							if (landingCount == targetLanding) {
-//								curr->stage |= HAS_CHILD_BIT; // Mark parent as branched
-//
-//								// Push new state
-//								sp++;
-//								stack[sp].index = land;
-//								stack[sp].occupied_black = curr->occupied_black ^ bit;
-//								stack[sp].stage = 0;
-//
-//								// Increment landing index for when we return to the parent
-//								curr->stage = (dir) | ((targetLanding + 1) << 4) | (curr->stage & HAS_CHILD_BIT);
-//								foundCaptureInDir = true;
-//								break;
-//							}
-//							landingCount++;
-//						}
-//
-//						// If we've exhausted landing squares for this specific enemy
-//						if (!foundCaptureInDir) {
-//							curr->stage = (dir + 1) | (0 << 4) | (curr->stage & HAS_CHILD_BIT);
-//						}
-//					}
-//					else {
-//						// Hit own piece, direction blocked
-//						curr->stage = (dir + 1) | (0 << 4) | (curr->stage & HAS_CHILD_BIT);
-//					}
-//					break;
-//				}
-//			}
-//			// If the diagonal was empty or we reached the edge without hitting anything
-//			if (scan == -1) {
-//				curr->stage = (dir + 1) | (0 << 4) | (curr->stage & HAS_CHILD_BIT);
-//			}
-//		}
-//		else {
-//			// Leaf logic: if this node never successfully pushed a child, it's a leaf
-//			if (!(curr->stage & HAS_CHILD_BIT) && sp > 0) {
-//				leafCount++;
-//			}
-//			sp--;
-//		}
-//	}
-//	return leafCount;
-//}
 
 #define UP_RIGHT 0
 #define UP_LEFT 1
@@ -710,14 +672,12 @@ __device__ int countWhiteCaptureLeaves(Board* b, char startIndex, char offset, u
 
 
 __device__ __constant__ const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
-__device__ __constant__ const int8_t DEST_OFFSETS_CLOCK[4] = { -7, 9, 7, -9 };
 
 #define NO_SQUARE 67
 
 // faster division
 __device__ int getNextSquare(char index, char dir, char offset) {
 	char ret = index + WITH_OFFSETS_CLOCK[dir] + offset;
-	//printf("Sq: %d\n", ret);
 	if (ret < 0 || ret > 31)
 		return NO_SQUARE;
 
@@ -734,7 +694,7 @@ __device__ int checkLine(uint32_t occ_total, uint32_t black, char index, char di
 	char curr = index;
 	char with = getNextSquare(curr, dir, offset);
 	char to = getNextSquare(with, dir, 1 - offset);
-	if (curr == NO_SQUARE) {
+	if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 		return 0;
 	}
 	while (1) {
@@ -747,7 +707,7 @@ __device__ int checkLine(uint32_t occ_total, uint32_t black, char index, char di
 		with = to;
 		to = getNextSquare(with, dir, work_offset);
 		work_offset = 1 - work_offset;
-		if (curr == NO_SQUARE) {
+		if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 			break;
 		}
 	}
@@ -772,7 +732,7 @@ __device__ int captureKing(uint32_t occ_total, uint32_t black, char index, char 
 	int capture = 0;
 	while (1) {
 		int line = checkLine(occ_total, black, curr, (dir + 1) % 4, work_offset);
-		printf("%d Check line 1: %d\n",curr, line);
+		printf("%d Check line 1: %d\n", curr, line);
 		if (line != 0) {
 			capture += line;
 			normal = 0;
@@ -822,8 +782,8 @@ __device__ int captureKing(uint32_t occ_total, uint32_t black, char index, char 
 		with = to;
 		to = getNextSquare(with, dir, work_offset);
 		work_offset = 1 - work_offset;
-		printf("CaptureKing loop end %d %d %d dir %d new offset: %d\n", curr, with, to,dir, work_offset);
-		if (curr == NO_SQUARE) {
+		printf("CaptureKing loop end %d %d %d dir %d new offset: %d\n", curr, with, to, dir, work_offset);
+		if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 			break;
 		}
 	}
@@ -854,7 +814,7 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 		char work_offset = offset;
 		while (1) {
 
-			
+
 			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
 
 				printf("Found right up %d %d %d\n", curr, with, to);
@@ -867,7 +827,7 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 			with = to;
 			to = getNextSquare(with, UP_RIGHT, work_offset);
 			work_offset = 1 - work_offset;
-			if (curr == NO_SQUARE) {
+			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 				break;
 			}
 			normal++;
@@ -896,7 +856,7 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 			to = getNextSquare(with, DOWN_LEFT, work_offset);
 			work_offset = 1 - work_offset;
 
-			if (curr == NO_SQUARE) {
+			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 				break;
 			}
 
@@ -926,7 +886,7 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 			to = getNextSquare(with, DOWN_RIGHT, work_offset);
 			work_offset = 1 - work_offset;
 
-			if (curr == NO_SQUARE) {
+			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 				break;
 			}
 			normal++;
@@ -955,7 +915,7 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 			to = getNextSquare(with, UP_LEFT, work_offset);
 			work_offset = 1 - work_offset;
 
-			if (curr == NO_SQUARE) {
+			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
 				break;
 			}
 
@@ -971,6 +931,25 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 		return normal;
 	return capture;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1023,8 +1002,8 @@ __global__ void checkersKernel(Board* b,  char* ret)
 			printf("%d : board: %d\n", index, board[index]);
 
 			if(b-> white_kings & 1 << index) {
-				//printf("Why checking");
-				int m = noCaptureKing(b->occupied_total ^ (1 << index), b->occupied_black, index, NONE, offset);
+				printf("White king checking");
+				int m = noCaptureKing(b->occupied_total ^ (1 << index), b->occupied_black, index,NONE, offset);
 
 				printf("king %d m: %d\n", index, m);
 				//krolowa
@@ -1116,7 +1095,7 @@ Error:
 int main()
 {	
 
-	Board board = kingCycle();
+	Board board = kingBlocking1();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
