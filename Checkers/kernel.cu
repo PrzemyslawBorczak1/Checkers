@@ -317,8 +317,8 @@ Board cycleBoard3() {
 Board kingMainLine1() {
 	Board b;
 	b.white_pawns = 0;
-	b.white_kings = 0x10000000;
-	b.black_pawns = 0x00004080;
+	b.white_kings = 0x00000008;
+	b.black_pawns = 0x00000080;
 	b.black_kings = 0;
 	b.occupied_white = b.white_pawns | b.white_kings;
 	b.occupied_black = b.black_pawns | b.black_kings;
@@ -409,11 +409,115 @@ Board kingLine3() {
 	return b;
 }
 
+Board kingAllDir() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x00004000;
+	b.black_pawns = 0x00060600;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
 
 
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+Board dr() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x80000000;
+	b.black_pawns = 0x04000000;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
 
 
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
 
+	return b;
+}
+Board dl() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x00000008;
+	b.black_pawns = 0x00000080;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+Board ur() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x10000000;
+	b.black_pawns = 0x01000000;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+Board ul() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x00000001;
+	b.black_pawns = 0x00000020;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+Board kingCycle() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x00000800;
+	b.black_pawns = 0x0060A0C0;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
 
 
 #define MAX_CAPTURE_DEPTH 12
@@ -636,13 +740,13 @@ __device__ int checkLine(uint32_t occ_total, uint32_t black, char index, char di
 	while (1) {
 		if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
 			printf("Line found capture %d %d %d\n", curr, with, to);
-			return captureKing(occ_total ^ (1<<with), black ^ (1 << with), to, dir, work_offset);
+			return captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, dir, work_offset);
 		}
 
-		work_offset = 1 - work_offset;
 		curr = with;
 		with = to;
 		to = getNextSquare(with, dir, work_offset);
+		work_offset = 1 - work_offset;
 		if (curr == NO_SQUARE) {
 			break;
 		}
@@ -652,14 +756,18 @@ __device__ int checkLine(uint32_t occ_total, uint32_t black, char index, char di
 
 
 __device__ int captureKing(uint32_t occ_total, uint32_t black, char index, char dir, char offset) {
+	print_int(occ_total);
+	printf("\n");
+	print_int(black);
 
-	printf("CaptureKing call\n\n");
+	printf("\n\nCaptureKing call with dir %d\n", dir);
 	char work_offset = offset;
 	char curr = index;
 	char with = getNextSquare(curr, dir, offset);
 	char to = getNextSquare(with, dir, 1 - offset);
-	bool add_norm = false;
+	bool add_norm = true;
 
+	printf("CaptureKing initial %d %d %d new offset: %d\n", curr, with, to, work_offset);
 	int normal = 0;
 	int capture = 0;
 	while (1) {
@@ -681,34 +789,45 @@ __device__ int captureKing(uint32_t occ_total, uint32_t black, char index, char 
 		printf("%d Normal increment\n", curr);
 		normal++;
 
-		printf("CaptureKing no capture for %d %d %d\n", curr, with, to);
-			print_int(occ_total);
+		printf("CaptureKing check %d %d %d\n", curr, with, to);
+		/*	print_int(occ_total);
 			printf("\n");
-			print_int(black);
+			print_int(black);*/
 		if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
+
+
+			printf("CaptureKing found capture %d %d %d\n", curr, with, to);
+
+
+			occ_total &= ~(1 << with);
+			black &= ~(1 << with);
+
 			normal = 0;
-			work_offset = 1 - work_offset;
 			curr = with;
 			with = to;
 			to = getNextSquare(with, dir, work_offset);
 			add_norm = true;
 
-			occ_total ^= (1 << with);
-			black ^= (1 << with);
+			work_offset = 1 - work_offset;
+
+
+			print_int(occ_total);
+			printf("\n");
+			print_int(black);
 
 			printf("CaptureKing capture skip to %d %d %d\n", curr, with, to);
 		}
 
-		work_offset = 1 - work_offset;
 		curr = with;
 		with = to;
 		to = getNextSquare(with, dir, work_offset);
-		printf("CaptureKing loop end %d %d %d\n", curr, with, to);
+		work_offset = 1 - work_offset;
+		printf("CaptureKing loop end %d %d %d dir %d new offset: %d\n", curr, with, to,dir, work_offset);
 		if (curr == NO_SQUARE) {
 			break;
 		}
 	}
-	printf("CaptureKing Capture: %d  Normal: %d\n", capture, normal);
+	printf("CaptureKing Capture: %d  Normal: %d\n\n", capture, normal);
 	if (add_norm)
 	{
 		return capture + normal;
@@ -767,7 +886,7 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
 
 				printf("Found left down capture %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total, black ^ (1 << with), to, DOWN_LEFT, work_offset);
+				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, DOWN_LEFT, work_offset);
 
 				break;
 			}
@@ -796,8 +915,8 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 
 			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
 
-				printf("Found left down capture %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total, black ^ (1 << with), to, DOWN_RIGHT, work_offset);
+				printf("Found right down capture %d %d %d\n", curr, with, to);
+				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, DOWN_RIGHT, work_offset);
 
 				break;
 			}
@@ -825,8 +944,8 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 
 			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
 
-				printf("Found left down capture %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total, black ^ (1 << with), to, UP_LEFT, work_offset);
+				printf("Found left up capture %d %d %d\n", curr, with, to);
+				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, UP_LEFT, work_offset);
 
 				break;
 			}
@@ -931,6 +1050,14 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		goto Error;
 	}
 
+	// todo delte afte debugging
+	size_t cur = 0;
+	cudaDeviceGetLimit(&cur, cudaLimitStackSize);
+	printf("Current stack: %zu bytes\n", cur);
+
+	// e.g. 64 KB per thread (pick a value and test)
+	cudaDeviceSetLimit(cudaLimitStackSize, 64 * 1024);
+
 	/*printf("Board: %d", sizeof(Board));
 	printf("Inside: %d", 6 * sizeof(uint32_t) + 3 * sizeof(char));
 	if (sizeof(Board) != 6 * sizeof(uint32_t) + 3 * sizeof(char)) {
@@ -988,7 +1115,8 @@ Error:
 
 int main()
 {	
-	Board board = kingLine3();
+
+	Board board = kingCycle();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
