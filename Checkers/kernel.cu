@@ -5,564 +5,6 @@
 #include <stdio.h>
 #include "tests.h"
 
-// czarne na gorze
-// uklad 
-// notacja 
-//   a b c d e f g h
-// 
-//		7	3
-//		6	2
-//	..	5	1
-//	8	4	0
-//struct Board {
-//    uint32_t white_pawns;
-//    uint32_t white_kings;
-//    uint32_t black_pawns;
-//    uint32_t black_kings;
-//
-//	uint32_t occupied_white;
-//	uint32_t occupied_black;
-//
-//	uint32_t occupied_total;
-//
-//	char white_strength;
-//	char black_strength;
-//
-//	char is_white_move;
-//	char is_capture;
-//};
-
-
-__host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char c) {
-	int x = 0;
-	int y = 1;
-	int pos = 0;
-	for (int i = 0; i < 32; i++) {
-		if (board & (1u << (31 - i))) {
-			pos = y * 9 + x;
-			buffer[pos] = c;
-		}
-		y += 2;
-
-		if (y >= 8) {
-			y = 1 - (y - 8);
-			x++;
-		}
-
-	}
-}
-
-void printBoard(Board board) {
-
-	char buffer[72];
-	memset(buffer, ' ', 72);
-
-	buffer[71] = '\0';
-
-	for (int i = 0; i < 7; i++) {
-		buffer[i * 9 + 8] = '\n';
-	}
-
-
-	writeBoardToBuff(buffer, board.black_pawns, 'b');
-	writeBoardToBuff(buffer, board.white_pawns, 'w');
-	writeBoardToBuff(buffer, board.black_kings, 'B');
-	writeBoardToBuff(buffer, board.white_kings, 'V');
-
-
-
-	printf("\n");
-	printf("   a b c d e f g h\n");
-	printf("  ----------------\n");
-
-	for (int row = 0; row < 8; row++) {
-		printf("%d| ", 8 - row);
-		for (int col = 0; col < 8; col++) {
-			int pos = row * 9 + col;
-			printf("%c ", buffer[pos]);
-		}
-		printf("\n");
-	}
-
-	printf("  ----------------\n");
-	printf("   a b c d e f g h\n\n");
-
-}
-
-__host__ __device__ void print_int(uint32_t n) {
-	char buffer[72];
-	memset(buffer, '_', 72);
-
-	buffer[71] = '\0';
-
-	for (int i = 0; i < 7; i++) {
-		buffer[i * 9 + 8] = '\n';
-	}
-
-
-	writeBoardToBuff(buffer, n, '*');
-	printf("%s\n", buffer);
-}
-
-__host__ __device__ void print_bin(uint32_t n)
-{
-	for (int i = 31; i >= 0; i--) {
-		if (n & (1u << i)) {
-			printf("1");
-		}
-		else {
-			printf("0");
-		}
-		if (i % 4 == 0) {
-			printf(" ");
-		}
-	}
-	printf("\n");
-}
-
-
-
-
-Board captureBoard() {
-	
-	Board b;
-	b.white_pawns = 0x31313131;
-	b.white_kings = 0;
-	b.black_pawns = 0x8A8A8A8A;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-
-}
-
-Board endBoard() {
-
-	Board b;
-	b.white_pawns = 0x80808080;
-	b.white_kings = 0;
-	b.black_pawns = 0x08080808;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-
-}
-
-Board backCapture() {
-	Board b;
-	b.white_pawns = 0x02020202;
-	b.white_kings = 0;
-	b.black_pawns = 0x20202020;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board firstRow() {
-	Board b;
-	b.white_pawns = 0x10101010;
-	b.white_kings = 0;
-	b.black_pawns = 0x08080808;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board lastRow1() {
-	Board b;
-	b.white_pawns = 0x08080808;
-	b.white_kings = 0;
-	b.black_pawns = 0x01010101;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board lastRow2() {
-	Board b;
-	b.white_pawns = 0x08080808;
-	b.white_kings = 0;
-	b.black_pawns = 0x10101010;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board cycleBoard1() {
-	Board b;
-	b.white_pawns = 0x00000100;
-	b.white_kings = 0;
-	b.black_pawns = 0x00C0A060;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board cycleBoard2() {
-	Board b;
-	b.white_pawns = 0x00000800;
-	b.white_kings = 0;
-	b.black_pawns = 0x0060A0C0;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board cycleBoard3() {
-	Board b;
-	b.white_pawns = 0x00008000;
-	b.white_kings = 0;
-	b.black_pawns = 0x00060600;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingMainLine1() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00000008;
-	b.black_pawns = 0x00000080;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingMainLine2() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x10000000;
-	b.black_pawns = 0x00000000;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingLine1() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00010000;
-	b.black_pawns = 0x00000000;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingLine2() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00010000;
-	b.black_pawns = 0x00002000;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingLine3() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00000080;
-	b.black_pawns = 0x01402400;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingAllDir() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00004000;
-	b.black_pawns = 0x00060600;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board dr() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x80000000;
-	b.black_pawns = 0x04000000;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-Board dl() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00000008;
-	b.black_pawns = 0x00000080;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-Board ur() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x10000000;
-	b.black_pawns = 0x01000000;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-Board ul() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00000001;
-	b.black_pawns = 0x00000020;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-Board kingCycle() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x00000800;
-	b.black_pawns = 0x0060A0C0;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-
-Board kingWierd() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x01000000;
-	b.black_pawns = 0x02246420;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingBlocking1() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x10000000;
-	b.black_pawns = 0x04646700;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
-
-Board kingBlocking2() {
-	Board b;
-	b.white_pawns = 0;
-	b.white_kings = 0x10000000;
-	b.black_pawns = 0x04446700;
-	b.black_kings = 0;
-	b.occupied_white = b.white_pawns | b.white_kings;
-	b.occupied_black = b.black_pawns | b.black_kings;
-	b.occupied_total = b.occupied_white | b.occupied_black;
-
-
-
-	b.white_strength = 12;
-	b.black_strength = 12;
-	b.is_white_move = true;
-	b.is_capture = false;
-
-	return b;
-}
 
 #define MAX_CAPTURE_DEPTH 12
 
@@ -576,10 +18,7 @@ struct SearchState {
 };
 
 __device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
-	// chyba bez?
-	/*if(with < 0 || with >= 32) {
-		return;
-	}*/
+	
 
 	if (to < 0 || to >= 32) {
 		return false;
@@ -929,78 +368,237 @@ __device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, cha
 
 
 
+__device__ __forceinline__ void unpack_u16_move(
+	uint16_t packed,
+	uint8_t& from,
+	uint8_t& with,
+	uint8_t& to
+) {
+	from = (uint8_t)(packed & 31u);
+	with = (uint8_t)((packed >> 5) & 31u);
+	to = (uint8_t)((packed >> 10) & 31u);
+}
+
+
+__device__ __forceinline__ void add_new_capture(
+	uint16_t& capture,
+	uint32_t& rng_reg,
+	uint8_t& count,
+	uint8_t from,
+	uint8_t with,
+	uint8_t to
+) {
+	count++;
+	uint32_t x = rng_reg;
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	rng_reg = x;
+	if ((x % (uint32_t)count) == 0u) {
+		capture = (uint16_t)0 | (((to & 31u) << 10) |
+			((with & 31u) << 5) |
+			((from & 31u)));
+	}
+}
+
+__device__ __forceinline__ void add_new_normal(
+	uint16_t& capture,
+	uint32_t& rng_reg,
+	uint8_t& count,
+	uint8_t from,
+	uint8_t to
+) {
+	count++;
+	uint32_t x = rng_reg;
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	rng_reg = x;
+	if ((x % (uint32_t)count) == 0u) {
+		capture = (uint16_t)0 | (((to & 31u) << 10) |
+			((from & 31u)));
+	}
+}
 
 
 
 
-
-
-
-
-
-
-
-__global__ void checkersKernel(Board* b,  char* ret)
+__global__ void checkersKernel(Board* b, char* ret)
 {
-	__shared__ char board[32];
-
-	int index = threadIdx.x;
-	board[index] = 0;
-	int x = index / 4;
-	int y = (index % 4) ;
-	int offset = 1 -  x % 2;
-	char with;
-
-	while (true)
-	{
-		switch (b->is_white_move) {
-		case true:
-			if (!(b->occupied_white & 1 << index)) {
-				break;
-			}
+	// todo add sth like thsi
+	/*int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t seed = base_seed ^ (uint32_t)tid;
+	seed = seed ? seed : 1u;*/
+	uint32_t seed = 123456789u;
 
 
-			with = index - 4 + offset;
-			if (((with / 4) % 2) != (index / 4) % 2) {// nie mozna zlaczyc bo on jest zwiazny z drugim warunkiem
-				if (with > 0 && with < 32) {
-					if (!(b->occupied_total & (1 << with))) {
-						board[index]++;
-					}
-				}
-			}
+	uint32_t white_pawns = b->white_pawns;
+	uint32_t black_pawns = b->black_pawns;
 
-			with = index + 4 + offset;
-			if (((with / 4) % 2) != (index / 4) % 2) {
-				if (with > 0 && with < 32) {
-					if (!(b->occupied_total & (1 << with))) {
-						board[index]++;
-					}
-				}
-			}
-			
-			if (b->white_pawns & 1 << index) {
-				char mv = countWhiteCaptureLeaves(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black);
+	uint32_t black_kings = b->black_kings;
+	uint32_t white_kings = b->white_kings;
 
-				printf("index %d mc: %d\n", index, mv);
-			}
-			printf("%d : board: %d\n", index, board[index]);
 
-			if(b-> white_kings & 1 << index) {
-				printf("White king checking");
-				int m = noCaptureKing(b->occupied_total ^ (1 << index), b->occupied_black, index,NONE, offset);
+	uint32_t occupied_total = b->occupied_total;
 
-				printf("king %d m: %d\n", index, m);
-				//krolowa
-			}
+	int thread_index = threadIdx.x;
 
-			break;
 
-		case false:
+	uint8_t counter;
+	uint16_t move_packed;
 
-			break;
+	bool is_capture = false;
 
+	char offset = 0;
+
+	uint32_t opponenet_occupied;
+	uint32_t player_pawns;
+	uint32_t player_kings;
+
+	switch (b->is_white_move) {
+	case true:
+		opponenet_occupied = black_pawns | black_kings;
+		player_pawns = white_pawns;
+		player_kings = white_kings;
+		break;
+
+	case false:
+		opponenet_occupied = white_pawns | white_kings;
+		player_pawns = black_pawns;
+		player_kings = black_kings;
+		break;
+	}
+
+
+	counter = 0;
+
+	uint8_t with, to;
+	char board_index = 0;
+
+	for (int i = 0; i < 32; i++) {
+		if (i % 4 == 0) {
+			offset = 1 - offset;
 		}
-		return;
+
+		if (!((player_pawns | player_kings) & (1 << i))) {
+			continue;
+		}
+
+		if (player_pawns & 1 << i) {
+			for (char j = 0; j < 4; j++) {
+				with = i + WITH_OFFSETS[j] + offset;
+				to = i + DEST_OFFSETS[j];
+
+				if (to < 0 || to >= 32) {
+					continue;
+				}
+
+				if (i / 4 % 2 != to / 4 % 2) {
+					continue;
+				}
+
+				if ((opponenet_occupied & (1 << with))) {
+					if (!(occupied_total & (1 << to))) {
+						if (is_capture == false) {
+							counter = 0;
+
+							is_capture = true;
+						}
+						counter++;
+						add_new_capture(
+							move_packed,
+							seed,
+							counter,
+							(uint8_t)i,
+							(uint8_t)with,
+							(uint8_t)to
+						);
+					}
+				}
+			}
+			if (is_capture == false) {
+				with = i - 4 + offset;
+				if (with >= 0 && with < 32) {
+					if (!(occupied_total & (1 << with))) {
+						counter++;
+						add_new_normal(
+							move_packed,
+							seed,
+							counter,
+							(uint8_t)i,
+							(uint8_t)with
+						);
+					}
+				}
+				with = i + 4 + offset;
+				if (with >= 0 && with < 32) {
+					if (!(occupied_total & (1 << with))) {
+						counter++;
+						add_new_normal(
+							move_packed,
+							seed,
+							counter,
+							(uint8_t)i,
+							(uint8_t)with
+						);
+					}
+				}
+			}
+		}
+
+		if (player_kings & 1 << i) {
+			printf("King");
+		}
+
+		board_index++;
+	}
+
+	printf("Board counter: %d\n", counter);
+
+	uint8_t from;
+	unpack_u16_move(move_packed, from, with, to);
+	if (is_capture) {
+		printf("Capture move packed: %u\n %d %d %d\n", move_packed, from, with, to);
+	}
+	else {
+		printf("Normal move packed: %u\n %d %d %d\n", move_packed, from, with, to);
+
+
+
+
+		//with = index - 4 + offset;
+		//if (((with / 4) % 2) != (index / 4) % 2) {// nie mozna zlaczyc bo on jest zwiazny z drugim warunkiem
+		//	if (with > 0 && with < 32) {
+		//		if (!(b->occupied_total & (1 << with))) {
+		//			board[index]++;
+		//		}
+		//	}
+		//}
+
+		//with = index + 4 + offset;
+		//if (((with / 4) % 2) != (index / 4) % 2) {
+		//	if (with > 0 && with < 32) {
+		//		if (!(b->occupied_total & (1 << with))) {
+		//			board[index]++;
+		//		}
+		//	}
+		//}
+
+		//if (b->white_pawns & 1 << index) {
+		//	char mv = countWhiteCaptureLeaves(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black);
+
+		//	printf("index %d mc: %d\n", index, mv);
+		//}
+		//printf("%d : board: %d\n", index, board[index]);
+
+		//if (b->white_kings & 1 << index) {
+		//	printf("White king checking");
+		//	int m = noCaptureKing(b->occupied_total ^ (1 << index), b->occupied_black, index, NONE, offset);
+
+		//	printf("king %d m: %d\n", index, m);
+		//	//krolowa
+		//}
+
 	}
 }
 
@@ -1012,21 +610,6 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 		goto Error;
 	}
-
-	// todo delte afte debugging
-	size_t cur = 0;
-	cudaDeviceGetLimit(&cur, cudaLimitStackSize);
-	printf("Current stack: %zu bytes\n", cur);
-
-	// e.g. 64 KB per thread (pick a value and test)
-	cudaDeviceSetLimit(cudaLimitStackSize, 64 * 1024);
-
-	/*printf("Board: %d", sizeof(Board));
-	printf("Inside: %d", 6 * sizeof(uint32_t) + 3 * sizeof(char));
-	if (sizeof(Board) != 6 * sizeof(uint32_t) + 3 * sizeof(char)) {
-		printf("Bad size of board");
-		goto Error;
-	}*/
 
 
 	Board* d_in = nullptr;
@@ -1051,7 +634,7 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		goto Error;
 	}
 
-	checkersKernel << <1, 32 >> > (d_in, d_ret);
+	checkersKernel << <1, 1 >> > (d_in, d_ret);
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
@@ -1079,7 +662,7 @@ Error:
 int main()
 {	
 
-	Board board = startBoard();
+	Board board = backCapture();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
