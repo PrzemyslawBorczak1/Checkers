@@ -6,388 +6,36 @@
 #include "tests.h"
 
 
-#define MAX_CAPTURE_DEPTH 12
 
-__device__ __constant__ const int8_t WITH_OFFSETS[4] = { -4, 4, -5, 3 };
-__device__ __constant__ const int8_t DEST_OFFSETS[4] = { -7, 9, -9, 7 };
 
-struct SearchState {
-	char index;
-	uint32_t occupied_black;
-	uint8_t stage;
-};
-
-__device__ bool checkCaptureForWhite(Board* b, char from, char with, char to, uint32_t occupied_total, uint32_t occupied_black) {
-	
-
-	if (to < 0 || to >= 32) {
-		return false;
-	}
-
-	if (from / 4 % 2 != to / 4 % 2) {
-		return false;
-	}
-
-	if ((occupied_black & (1 << with))) {
-		if (!(occupied_total & (1 << to))) {
-			return true;
-		}
-	}
-	return false;
-}
-
-
-#define HAS_CHILD_BIT 0x80
-#define DIRECTION_MASK 0x0F
-
-__device__ int countWhiteCaptureLeaves(Board* b, char startIndex, char offset, uint32_t startOccupiedTotal, uint32_t startOccupiedBlack) {
-	SearchState stack[MAX_CAPTURE_DEPTH];
-	int sp = 0;
-	int leafCount = 0;
-
-	stack[0].index = startIndex;
-	stack[0].occupied_black = startOccupiedBlack;
-	stack[0].stage = 0; 
-
-	while (sp >= 0) {
-		SearchState* current = &stack[sp];
-		int dir = (current->stage & DIRECTION_MASK);
-
-		if (dir < 4) {
-			current->stage++;
-
-			char idx = current->index;
-			char with = idx + WITH_OFFSETS[dir] + offset;
-			char dest = idx + DEST_OFFSETS[dir];
-
-			if (checkCaptureForWhite(b, idx, with, dest, startOccupiedTotal, current->occupied_black)) {
-				current->stage |= HAS_CHILD_BIT;
-
-				sp++;
-				if (sp < MAX_CAPTURE_DEPTH) {
-					stack[sp].index = dest;
-					stack[sp].occupied_black = current->occupied_black ^ (1 << with);
-					stack[sp].stage = 0; 
-				}
-			}
-		}
-		else {
-			if (!(current->stage & HAS_CHILD_BIT) && sp > 0) {
-				leafCount++;
-			}
-			sp--;
-		}
-	}
-
-	return leafCount;
-}
-
-
-
-
-
-
-#define UP_RIGHT 0
-#define UP_LEFT 1
-#define DOWN_LEFT 2
-#define DOWN_RIGHT 3
-#define NONE 4
-
-
-__device__ __constant__ const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
-
-#define NO_SQUARE 67
-
-// faster division
-__device__ int getNextSquare(char index, char dir, char offset) {
-	char ret = index + WITH_OFFSETS_CLOCK[dir] + offset;
-	if (ret < 0 || ret > 31)
-		return NO_SQUARE;
-
-	if (ret / 4 % 2 == index / 4 % 2)
-		return NO_SQUARE;
-
-	return ret;
-}
-
-__device__ int captureKing(uint32_t occ_total, uint32_t black, char index, char dir, char offset);
-
-__device__ int checkLine(uint32_t occ_total, uint32_t black, char index, char dir, char offset) {
-	char work_offset = offset;
-	char curr = index;
-	char with = getNextSquare(curr, dir, offset);
-	char to = getNextSquare(with, dir, 1 - offset);
-	if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-		return 0;
-	}
-	while (1) {
-		if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
-			printf("Line found capture %d %d %d\n", curr, with, to);
-			return captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, dir, work_offset);
-		}
-
-		curr = with;
-		with = to;
-		to = getNextSquare(with, dir, work_offset);
-		work_offset = 1 - work_offset;
-		if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-			break;
-		}
-	}
-	return 0;
-}
-
-
-__device__ int captureKing(uint32_t occ_total, uint32_t black, char index, char dir, char offset) {
-	print_int(occ_total);
-	printf("\n");
-	print_int(black);
-
-	printf("\n\nCaptureKing call with dir %d\n", dir);
-	char work_offset = offset;
-	char curr = index;
-	char with = getNextSquare(curr, dir, offset);
-	char to = getNextSquare(with, dir, 1 - offset);
-	bool add_norm = true;
-
-	printf("CaptureKing initial %d %d %d new offset: %d\n", curr, with, to, work_offset);
-	int normal = 0;
-	int capture = 0;
-	while (1) {
-		int line = checkLine(occ_total, black, curr, (dir + 1) % 4, work_offset);
-		printf("%d Check line 1: %d\n", curr, line);
-		if (line != 0) {
-			capture += line;
-			normal = 0;
-			add_norm = false;
-		}
-		line = checkLine(occ_total, black, curr, (dir + 3) % 4, work_offset);
-		printf("%d Check line 2: %d\n", curr, line);
-		if (line != 0) {
-			capture += line;
-			add_norm = false;
-			normal = 0;
-
-		}
-		printf("%d Normal increment\n", curr);
-		normal++;
-
-		printf("CaptureKing check %d %d %d\n", curr, with, to);
-		/*	print_int(occ_total);
-			printf("\n");
-			print_int(black);*/
-		if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
-
-
-			printf("CaptureKing found capture %d %d %d\n", curr, with, to);
-
-
-			occ_total &= ~(1 << with);
-			black &= ~(1 << with);
-
-			normal = 0;
-			curr = with;
-			with = to;
-			to = getNextSquare(with, dir, work_offset);
-			add_norm = true;
-
-			work_offset = 1 - work_offset;
-
-
-			print_int(occ_total);
-			printf("\n");
-			print_int(black);
-
-			printf("CaptureKing capture skip to %d %d %d\n", curr, with, to);
-		}
-
-		curr = with;
-		with = to;
-		to = getNextSquare(with, dir, work_offset);
-		work_offset = 1 - work_offset;
-		printf("CaptureKing loop end %d %d %d dir %d new offset: %d\n", curr, with, to, dir, work_offset);
-		if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-			break;
-		}
-	}
-	printf("CaptureKing Capture: %d  Normal: %d\n\n", capture, normal);
-	if (add_norm)
-	{
-		return capture + normal;
-	}
-
-	if (capture == 0)
-		return normal;
-	return capture;
-
-
-	printf("Capture king %d\n", index);
-}
-
-
-__device__ int noCaptureKing(uint32_t occ_total, uint32_t black, char index, char dir, char offset) {
-	int capture = 0;
-	int normal = 0;
-
-
-	if (dir != DOWN_LEFT) {
-		char curr = index;
-		char with = getNextSquare(curr, UP_RIGHT, offset);
-		char to = getNextSquare(with, UP_RIGHT, 1 - offset);
-		char work_offset = offset;
-		while (1) {
-
-
-			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
-
-				printf("Found right up %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, UP_RIGHT, work_offset);
-
-				break;
-			}
-
-			curr = with;
-			with = to;
-			to = getNextSquare(with, UP_RIGHT, work_offset);
-			work_offset = 1 - work_offset;
-			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-				break;
-			}
-			normal++;
-			printf("Right up (first acutall field): %d  %d  %d\n", curr, with, to);
-
-		}
-	}
-
-	if (dir != UP_RIGHT) {
-		char curr = index;
-		char with = getNextSquare(curr, DOWN_LEFT, offset);
-		char to = getNextSquare(with, DOWN_LEFT, 1 - offset);
-		char work_offset = offset;
-		while (1) {
-
-			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
-
-				printf("Found left down capture %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, DOWN_LEFT, work_offset);
-
-				break;
-			}
-
-			curr = with;
-			with = to;
-			to = getNextSquare(with, DOWN_LEFT, work_offset);
-			work_offset = 1 - work_offset;
-
-			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-				break;
-			}
-
-			normal++;
-			printf("Down left (first acutall field): %d  %d  %d\n", curr, with, to);
-
-		}
-	}
-
-	if (dir != UP_LEFT) {
-		char curr = index;
-		char with = getNextSquare(curr, DOWN_RIGHT, offset);
-		char to = getNextSquare(with, DOWN_RIGHT, 1 - offset);
-		char work_offset = offset;
-		while (1) {
-
-			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
-
-				printf("Found right down capture %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, DOWN_RIGHT, work_offset);
-
-				break;
-			}
-
-			curr = with;
-			with = to;
-			to = getNextSquare(with, DOWN_RIGHT, work_offset);
-			work_offset = 1 - work_offset;
-
-			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-				break;
-			}
-			normal++;
-			printf("Down right (first acutall field): %d  %d  %d\n", curr, with, to);
-
-		}
-	}
-
-	if (dir != DOWN_RIGHT) {
-		char curr = index;
-		char with = getNextSquare(curr, UP_LEFT, offset);
-		char to = getNextSquare(with, UP_LEFT, 1 - offset);
-		char work_offset = offset;
-		while (1) {
-
-			if (checkCaptureForWhite(NULL, curr, with, to, occ_total, black)) {
-
-				printf("Found left up capture %d %d %d\n", curr, with, to);
-				capture += captureKing(occ_total ^ (1 << with), black ^ (1 << with), to, UP_LEFT, work_offset);
-
-				break;
-			}
-
-			curr = with;
-			with = to;
-			to = getNextSquare(with, UP_LEFT, work_offset);
-			work_offset = 1 - work_offset;
-
-			if (curr == NO_SQUARE || (occ_total & (1 << curr))) {
-				break;
-			}
-
-			normal++;
-			printf("up left (first acutall field): %d  %d  %d\n", curr, with, to);
-
-		}
-	}
-
-
-
-	if (capture == 0)
-		return normal;
-	return capture;
-}
-
-
-
-
-
-
-
-
-
-
-
+__device__ __constant__  int8_t NEIGHBOURS[32][4];
+__device__ __constant__  int8_t CAPTURES[32][4];
 
 
 
 __device__ __forceinline__ void unpack_u16_move(
-	uint16_t packed,
+	uint32_t packed,
 	uint8_t& from,
 	uint8_t& with,
-	uint8_t& to
+	uint8_t& to,
+	uint8_t& dir
 ) {
 	from = (uint8_t)(packed & 31u);
 	with = (uint8_t)((packed >> 5) & 31u);
 	to = (uint8_t)((packed >> 10) & 31u);
+	dir = (uint8_t)((packed >> 15) & 31u);
 }
 
 
 __device__ __forceinline__ void add_new_capture(
-	uint16_t& capture,
+	uint32_t& move_pacekd,
 	uint32_t& rng_reg,
 	uint8_t& count,
 	uint8_t from,
 	uint8_t with,
 	uint8_t to
 ) {
+	printf("Add new pawn capture %d %d %d  count %d\n", from, with, to, count);
 	count++;
 	uint32_t x = rng_reg;
 	x ^= x << 13;
@@ -395,19 +43,20 @@ __device__ __forceinline__ void add_new_capture(
 	x ^= x << 5;
 	rng_reg = x;
 	if ((x % (uint32_t)count) == 0u) {
-		capture = (uint16_t)0 | (((to & 31u) << 10) |
+		move_pacekd = (uint32_t)0 | (((to & 31u) << 10) |
 			((with & 31u) << 5) |
 			((from & 31u)));
 	}
 }
 
 __device__ __forceinline__ void add_new_normal(
-	uint16_t& capture,
+	uint32_t& move_packed,
 	uint32_t& rng_reg,
 	uint8_t& count,
 	uint8_t from,
 	uint8_t to
 ) {
+	printf("Add new normal move %d %d  count %d\n", from, to, count);
 	count++;
 	uint32_t x = rng_reg;
 	x ^= x << 13;
@@ -415,10 +64,226 @@ __device__ __forceinline__ void add_new_normal(
 	x ^= x << 5;
 	rng_reg = x;
 	if ((x % (uint32_t)count) == 0u) {
-		capture = (uint16_t)0 | (((to & 31u) << 10) |
+		move_packed = (uint32_t)0 | (((to & 31u) << 10) |
 			((from & 31u)));
 	}
 }
+
+__device__ __forceinline__ void add_new_king_capture(
+	uint32_t& move_pacekd,
+	uint32_t& rng_reg,
+	uint8_t& count,
+	uint8_t from,
+	uint8_t with,
+	uint8_t to,
+	uint8_t dir
+) {
+	printf("Add new king capture %d %d %d dir %d count %d\n", from, with, to,dir,  count);
+	count++;
+	uint32_t x = rng_reg;
+	x ^= x << 13;
+	x ^= x >> 17;
+	x ^= x << 5;
+	rng_reg = x;
+	if ((x % (uint32_t)count) == 0u) {
+		move_pacekd = 
+			((uint32_t)(dir & 31u) << 15) |
+			((uint32_t)(to & 31u) << 10) |
+			((uint32_t)(with & 31u) << 5) |
+			((uint32_t)(from & 31u));
+	}
+}
+
+
+
+
+__device__ int8_t countEmptySquares(
+	uint32_t occ_total,
+	uint32_t occ_enemy,
+	uint8_t index,
+	uint8_t dir
+) {
+
+	int8_t ind = NEIGHBOURS[index][dir];
+	int8_t ret = 0;
+
+	while (ind != -1) {
+		// pole zajete
+		if (occ_total & (1 << ind)) {
+			// zajete przez przeciwnika
+			if (occ_enemy & (1 << ind)) {
+				printf("enemy  %d\n", ind);
+				// mozliwe jest wybicie
+				if (NEIGHBOURS[ind][dir] != -1 && !(occ_total & (1 << NEIGHBOURS[ind][dir]))) {
+					printf("Captiure ended in  %d\n", NEIGHBOURS[ind][dir]);
+					return -(ret + 2);
+				}
+				else {
+					break;
+				}
+			}
+			else {
+				break;
+			}
+		}
+
+		ind = NEIGHBOURS[ind][dir];
+		ret++;
+	}
+	return ret;
+}
+
+
+
+__device__ void addLandingSquareCapture_new(
+	uint32_t occ_total,
+	uint32_t occ_enemy,
+	uint8_t index,
+	uint8_t dir,
+	int8_t skip,
+	uint32_t& move_packed,
+	uint32_t& rng_reg,
+	uint8_t& count) {
+
+	uint8_t i = 0;
+	int8_t ind = index;
+	bool found_square = false;
+	for (i = 0; i < skip - 1; i++) {
+		ind = NEIGHBOURS[ind][dir];
+	}
+	int8_t start = ind;
+	ind = NEIGHBOURS[ind][dir];
+
+	printf("ind: %d fro idx: %d init skip  %d\n", ind, index, skip);
+	while (ind != -1){
+		if (occ_total & (1 << ind)) {
+			break;
+		}
+
+		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 1) % 4) < 0) {
+			printf("Captuere dir %d\n", (dir + 1) % 4);
+			add_new_king_capture(move_packed, rng_reg, count, index, start, ind, (dir + 1) % 4);
+			found_square = true;
+		}
+		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 3) % 4) < 0) {
+			printf("Captuere dir %d\n", (dir + 3) % 4);
+			add_new_king_capture(move_packed, rng_reg, count, index, start, ind, (dir + 3) % 4);
+			found_square = true;
+		}
+
+		if (occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
+			if (!(occ_total & (1 << CAPTURES[ind][dir]))) {
+				add_new_king_capture(move_packed, rng_reg, count, index, start, ind, dir);
+				found_square = true;
+			}
+		}
+
+
+		ind = NEIGHBOURS[ind][dir];
+	}
+
+	if (!found_square) {
+		ind = NEIGHBOURS[start][dir];
+		while (ind != -1) {
+
+			add_new_king_capture(move_packed, rng_reg, count, index, start, ind, 5);
+			ind = NEIGHBOURS[ind][dir];
+		}
+	}
+
+}
+
+
+
+
+
+
+
+
+
+
+
+__device__ __forceinline__ void king_move_new(
+	uint32_t& move_packed,
+	uint32_t& rng_reg,
+	uint8_t& count,
+	uint32_t occ_total,
+	uint32_t occ_enemy,
+	bool& was_capture,
+
+	uint8_t index
+) {
+	int8_t ret[4];
+	uint8_t i;
+	bool found_capture = false;
+
+	for (i = 0; i < 4; i++) {
+		ret[i] = countEmptySquares(occ_total, occ_enemy, index, i);
+		printf("ret: %d\n", ret[i]);
+		if (ret[i] < 0) {
+			found_capture = true;
+		}
+	}
+
+	if (!was_capture && found_capture) {
+		move_packed = 0;
+		count = 0;
+		was_capture = true;
+	}
+
+	printf("Was cature: %d\n", was_capture);
+	if (was_capture && !found_capture) {
+		return;
+	}
+	
+	if (found_capture) {
+
+		printf("found capture: %d\n", found_capture);
+		for (i = 0; i < 4; i++) {
+			if (ret[i] < 0) {
+				addLandingSquareCapture_new(
+					occ_total,
+					occ_enemy,
+					index,
+					i,
+					-ret[i],
+					move_packed,
+					rng_reg,
+					count
+					);
+			}
+		}
+	}
+	else{
+		for (i = 0; i < 4; i++) {
+
+			uint8_t j = 0;
+			int8_t current = index;
+			for (j = 0; j < ret[i]; j++) {
+				current = NEIGHBOURS[current][i];
+				add_new_normal(move_packed, rng_reg, count, index, current);
+			}
+
+		}
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -445,7 +310,7 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 
 	uint8_t counter;
-	uint16_t move_packed;
+	uint32_t move_packed;
 
 	bool is_capture = false;
 
@@ -475,7 +340,7 @@ __global__ void checkersKernel(Board* b, char* ret)
 	uint8_t with, to;
 	char board_index = 0;
 
-	for (int i = 0; i < 32; i++) {
+	for (uint8_t i = 0; i < 32; i++) {
 		if (i % 4 == 0) {
 			offset = 1 - offset;
 		}
@@ -486,8 +351,8 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 		if (player_pawns & 1 << i) {
 			for (char j = 0; j < 4; j++) {
-				with = i + WITH_OFFSETS[j] + offset;
-				to = i + DEST_OFFSETS[j];
+				with = NEIGHBOURS[i][j];
+				to = CAPTURES[i][j];
 
 				if (to < 0 || to >= 32) {
 					continue;
@@ -504,7 +369,6 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 							is_capture = true;
 						}
-						counter++;
 						add_new_capture(
 							move_packed,
 							seed,
@@ -516,11 +380,12 @@ __global__ void checkersKernel(Board* b, char* ret)
 					}
 				}
 			}
+
+			// to do inne dla przeciwnego koloru
 			if (is_capture == false) {
-				with = i - 4 + offset;
+				with = NEIGHBOURS[i][0];
 				if (with >= 0 && with < 32) {
 					if (!(occupied_total & (1 << with))) {
-						counter++;
 						add_new_normal(
 							move_packed,
 							seed,
@@ -530,10 +395,9 @@ __global__ void checkersKernel(Board* b, char* ret)
 						);
 					}
 				}
-				with = i + 4 + offset;
+				with = NEIGHBOURS[i][1];
 				if (with >= 0 && with < 32) {
 					if (!(occupied_total & (1 << with))) {
-						counter++;
 						add_new_normal(
 							move_packed,
 							seed,
@@ -547,7 +411,17 @@ __global__ void checkersKernel(Board* b, char* ret)
 		}
 
 		if (player_kings & 1 << i) {
-			printf("King");
+			printf("Checking king moves for index %d\n", i);
+
+			king_move_new(
+				move_packed,
+				seed,
+				counter,
+				occupied_total,
+				opponenet_occupied,
+				is_capture,
+				i
+			);
 		}
 
 		board_index++;
@@ -555,54 +429,64 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 	printf("Board counter: %d\n", counter);
 
-	uint8_t from;
-	unpack_u16_move(move_packed, from, with, to);
+	uint8_t from, dire;
+	unpack_u16_move(move_packed, from, with, to, dire);
 	if (is_capture) {
-		printf("Capture move packed: %u\n %d %d %d\n", move_packed, from, with, to);
+		printf("Capture move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dire);
 	}
 	else {
 		printf("Normal move packed: %u\n %d %d %d\n", move_packed, from, with, to);
-
-
-
-
-		//with = index - 4 + offset;
-		//if (((with / 4) % 2) != (index / 4) % 2) {// nie mozna zlaczyc bo on jest zwiazny z drugim warunkiem
-		//	if (with > 0 && with < 32) {
-		//		if (!(b->occupied_total & (1 << with))) {
-		//			board[index]++;
-		//		}
-		//	}
-		//}
-
-		//with = index + 4 + offset;
-		//if (((with / 4) % 2) != (index / 4) % 2) {
-		//	if (with > 0 && with < 32) {
-		//		if (!(b->occupied_total & (1 << with))) {
-		//			board[index]++;
-		//		}
-		//	}
-		//}
-
-		//if (b->white_pawns & 1 << index) {
-		//	char mv = countWhiteCaptureLeaves(b, index, offset, b->occupied_total ^ (1 << index), b->occupied_black);
-
-		//	printf("index %d mc: %d\n", index, mv);
-		//}
-		//printf("%d : board: %d\n", index, board[index]);
-
-		//if (b->white_kings & 1 << index) {
-		//	printf("White king checking");
-		//	int m = noCaptureKing(b->occupied_total ^ (1 << index), b->occupied_black, index, NONE, offset);
-
-		//	printf("king %d m: %d\n", index, m);
-		//	//krolowa
-		//}
-
 	}
 }
 
+
+
+
+int8_t Neighbours[32][4];
+int8_t Captures[32][4];
+
+void buildHelperTabs() {
+	 const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
+
+	 for (int i = 0; i < 32; i++) {
+		 int offset = 1 - ((i / 4) % 2);
+		 for (int j = 0; j < 4; j++) {
+			 int new_ind = i + WITH_OFFSETS_CLOCK[j] + offset;
+			 if (new_ind > 31 || new_ind < 0) {
+				 Neighbours[i][j] = -1;
+				 continue;
+			 }
+
+			 if (new_ind / 4 % 2 == i / 4 % 2) {
+				 Neighbours[i][j] = -1;
+				 continue;
+			 }
+			 Neighbours[i][j] = new_ind;
+		 }
+	 }
+
+
+
+	 const int8_t DEST_OFFSETS_CLOCK[4] = { -7, 9, 7, -9 };
+	 for (int i = 0; i < 32; i++) {
+		 for (int j = 0; j < 4; j++) {
+			 int new_ind = i + DEST_OFFSETS_CLOCK[j];
+			 if (new_ind > 31 || new_ind < 0) {
+				 Captures[i][j] = -1;
+				 continue;
+			 }
+
+			 if (new_ind / 4 % 2 != i / 4 % 2) {
+				 Captures[i][j] = -1;
+				 continue;
+			 }
+			 Captures[i][j] = new_ind;
+		 }
+	 }
+}
+
 cudaError_t calcAllMovesCuda(Board board_in) {
+
 
 	cudaError_t cudaStatus;
 	cudaStatus = cudaSetDevice(0);
@@ -611,6 +495,18 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		goto Error;
 	}
 
+	buildHelperTabs();
+	cudaStatus = cudaMemcpyToSymbol(NEIGHBOURS, Neighbours, sizeof(Neighbours));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpyToSymbol failed!");
+		goto Error;
+	}
+
+	cudaStatus = cudaMemcpyToSymbol(CAPTURES, Captures, sizeof(Captures));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpyToSymbol failed!");
+		goto Error;
+	}
 
 	Board* d_in = nullptr;
 	char d_ret[32];
@@ -662,7 +558,7 @@ Error:
 int main()
 {	
 
-	Board board = backCapture();
+	Board board = firstRow();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
