@@ -11,6 +11,9 @@
 __device__ __constant__  int8_t NEIGHBOURS[32][4];
 __device__ __constant__  int8_t CAPTURES[32][4];
 
+// 1 - 4  damka nie skonczone bicie
+#define NO_DIRECTION 5 // damka skonczone bicie
+#define UNKOWN_DIRECTION 6 // pionek bicie
 
 
 __device__ __forceinline__ void unpack_u16_move(
@@ -69,7 +72,7 @@ __device__ __forceinline__ void add_new_normal(
 	}
 }
 
-__device__ __forceinline__ void add_new_king_capture(
+__device__ __forceinline__ void add_new_dir_capture(
 	uint32_t& move_pacekd,
 	uint32_t& rng_reg,
 	uint8_t& count,
@@ -162,18 +165,18 @@ __device__ void addLandingSquareCapture_new(
 
 		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 1) % 4) < 0) {
 			printf("Captuere dir %d\n", (dir + 1) % 4);
-			add_new_king_capture(move_packed, rng_reg, count, index, start, ind, (dir + 1) % 4);
+			add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, (dir + 1) % 4);
 			found_square = true;
 		}
 		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 3) % 4) < 0) {
 			printf("Captuere dir %d\n", (dir + 3) % 4);
-			add_new_king_capture(move_packed, rng_reg, count, index, start, ind, (dir + 3) % 4);
+			add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, (dir + 3) % 4);
 			found_square = true;
 		}
 
 		if (occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
 			if (!(occ_total & (1 << CAPTURES[ind][dir]))) {
-				add_new_king_capture(move_packed, rng_reg, count, index, start, ind, dir);
+				add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, dir);
 				found_square = true;
 			}
 		}
@@ -185,17 +188,16 @@ __device__ void addLandingSquareCapture_new(
 	if (!found_square) {
 		ind = NEIGHBOURS[start][dir];
 		while (ind != -1) {
-
-			add_new_king_capture(move_packed, rng_reg, count, index, start, ind, 5);
+			if (occ_total & (1 << ind)) {
+				break;
+			}
+			add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, NO_DIRECTION);
 			ind = NEIGHBOURS[ind][dir];
+			
 		}
 	}
 
 }
-
-
-
-
 
 
 
@@ -274,93 +276,34 @@ __device__ __forceinline__ void king_move_new(
 
 
 
+__device__ uint32_t chooseMove(
+	uint32_t player_pawns,
+	uint32_t player_kings,
+	uint32_t opponenet_occupied,
+	uint32_t occupied_total,
+	bool is_white_move,
+	uint32_t& seed
+) {
+	uint8_t counter = 0;
+	bool is_capture;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-__global__ void checkersKernel(Board* b, char* ret)
-{
-	// todo add sth like thsi
-	/*int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	uint32_t seed = base_seed ^ (uint32_t)tid;
-	seed = seed ? seed : 1u;*/
-	uint32_t seed = 123456789u;
-
-
-	uint32_t white_pawns = b->white_pawns;
-	uint32_t black_pawns = b->black_pawns;
-
-	uint32_t black_kings = b->black_kings;
-	uint32_t white_kings = b->white_kings;
-
-
-	uint32_t occupied_total = b->occupied_total;
-
-	int thread_index = threadIdx.x;
-
-
-	uint8_t counter;
 	uint32_t move_packed;
 
-	bool is_capture = false;
-
-	char offset = 0;
-
-	uint32_t opponenet_occupied;
-	uint32_t player_pawns;
-	uint32_t player_kings;
-
-	switch (b->is_white_move) {
-	case true:
-		opponenet_occupied = black_pawns | black_kings;
-		player_pawns = white_pawns;
-		player_kings = white_kings;
-		break;
-
-	case false:
-		opponenet_occupied = white_pawns | white_kings;
-		player_pawns = black_pawns;
-		player_kings = black_kings;
-		break;
-	}
-
-
-	counter = 0;
 
 	uint8_t with, to;
 	char board_index = 0;
 
 	for (uint8_t i = 0; i < 32; i++) {
-		if (i % 4 == 0) {
-			offset = 1 - offset;
-		}
-
+		
 		if (!((player_pawns | player_kings) & (1 << i))) {
 			continue;
 		}
 
 		if (player_pawns & 1 << i) {
+			// bicie pionek
 			for (char j = 0; j < 4; j++) {
 				with = NEIGHBOURS[i][j];
 				to = CAPTURES[i][j];
-
-				if (to < 0 || to >= 32) {
-					continue;
-				}
-
-				if (i / 4 % 2 != to / 4 % 2) {
-					continue;
-				}
 
 				if ((opponenet_occupied & (1 << with))) {
 					if (!(occupied_total & (1 << to))) {
@@ -369,21 +312,27 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 							is_capture = true;
 						}
-						add_new_capture(
+						add_new_dir_capture(
 							move_packed,
 							seed,
 							counter,
 							(uint8_t)i,
 							(uint8_t)with,
-							(uint8_t)to
+							(uint8_t)to,
+							UNKOWN_DIRECTION
 						);
 					}
 				}
 			}
 
-			// to do inne dla przeciwnego koloru
+			// normal move
 			if (is_capture == false) {
-				with = NEIGHBOURS[i][0];
+				if (is_white_move) {
+					with = NEIGHBOURS[i][0];
+				}
+				else {
+					with = NEIGHBOURS[i][2];
+				}
 				if (with >= 0 && with < 32) {
 					if (!(occupied_total & (1 << with))) {
 						add_new_normal(
@@ -395,7 +344,13 @@ __global__ void checkersKernel(Board* b, char* ret)
 						);
 					}
 				}
-				with = NEIGHBOURS[i][1];
+				if (is_white_move) {
+					with = NEIGHBOURS[i][1];
+				}
+				else {
+					with = NEIGHBOURS[i][3];
+				}
+
 				if (with >= 0 && with < 32) {
 					if (!(occupied_total & (1 << with))) {
 						add_new_normal(
@@ -428,15 +383,178 @@ __global__ void checkersKernel(Board* b, char* ret)
 	}
 
 	printf("Board counter: %d\n", counter);
+	return move_packed;
 
-	uint8_t from, dire;
-	unpack_u16_move(move_packed, from, with, to, dire);
-	if (is_capture) {
-		printf("Capture move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dire);
+}
+
+
+
+
+
+
+__device__ uint32_t chooseKingNextMove(
+	uint32_t occ_total,
+	uint32_t occ_enemy,
+	uint8_t from,
+	uint8_t dir,
+	int8_t with,
+	uint32_t& move_packed,
+	uint32_t& rng_reg,
+	uint8_t& count){
+
+	
+	uint8_t ind = NEIGHBOURS[with][dir];
+	bool found_square = false;
+
+	printf("ind: %d fro idx: %d init skip  %d\n", ind, from);
+	while (ind != -1) {
+		if (occ_total & (1 << ind)) {
+			break;
+		}
+
+		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 1) % 4) < 0) {
+			printf("Captuere dir %d\n", (dir + 1) % 4);
+			add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, (dir + 1) % 4);
+			found_square = true;
+		}
+		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 3) % 4) < 0) {
+			printf("Captuere dir %d\n", (dir + 3) % 4);
+			add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, (dir + 3) % 4);
+			found_square = true;
+		}
+
+		if (occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
+			if (!(occ_total & (1 << CAPTURES[ind][dir]))) {
+				add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, dir);
+				found_square = true;
+			}
+		}
+
+
+		ind = NEIGHBOURS[ind][dir];
 	}
-	else {
-		printf("Normal move packed: %u\n %d %d %d\n", move_packed, from, with, to);
+
+	if (!found_square) {
+		ind = NEIGHBOURS[with][dir];
+		while (ind != -1) {
+
+			add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, NO_DIRECTION);
+			ind = NEIGHBOURS[ind][dir];
+		}
 	}
+}
+
+
+__device__ void performMove(
+	uint32_t& player_pawns,
+	uint32_t& player_kings, 
+	uint32_t& opponent_pawns,
+	uint32_t& opponent_kings,
+	uint32_t move_packed,
+	uint32_t& seed
+	) {
+
+	uint8_t from, with, to, dir;
+	unpack_u16_move(move_packed, from, with, to, dir);
+	printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
+
+	// normal move
+	if (with == 0) {
+		if (player_pawns & (1 << from)) {
+			player_pawns ^= (1 << from);
+			if (to % 4 == 3) {
+				player_kings ^= (1 << to);
+			}
+			else {
+				player_pawns ^= (1 << to);
+			}
+		}
+		else {
+			player_kings ^= (1 << from);
+			player_kings |= (1 << to);
+		}
+	}
+	// znicie pionek
+
+
+	// king single capture
+	if (dir == NO_DIRECTION) {
+		opponent_kings &= ~(1 << with);
+		opponent_pawns &= ~(1 << with);
+
+		player_kings ^= (1 << from);
+		player_kings |= (1 << to);
+	}
+	// king multiple capture
+	if (dir < NO_DIRECTION) {
+		opponent_kings &= ~(1 << with);
+		opponent_pawns &= ~(1 << with);
+
+		player_kings &= ~(1 << from);
+
+		uint32_t next_move = 0;
+		uint8_t count = 0;
+		/*chooseKingNextMove(opponent_kings | opponent_pawns | player_kings | player_pawns,
+			opponent_kings | opponent_pawns, to, dir, skip, next_move, seed, count);*/
+	}
+
+}
+
+
+
+
+
+
+
+
+
+
+__global__ void checkersKernel(Board* b, char* ret)
+{
+	// todo add sth like thsi
+	/*int tid = blockIdx.x * blockDim.x + threadIdx.x;
+	uint32_t seed = base_seed ^ (uint32_t)tid;
+	seed = seed ? seed : 1u;*/
+	uint32_t seed = 12345678u;
+
+
+	uint32_t white_pawns = b->white_pawns;
+	uint32_t black_pawns = b->black_pawns;
+
+	uint32_t black_kings = b->black_kings;
+	uint32_t white_kings = b->white_kings;
+
+
+	uint32_t occupied_total = b->occupied_total;
+
+	int thread_index = threadIdx.x;
+
+
+
+	switch (true) {
+	case true:
+		printBoard(b[0]);
+		uint32_t move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occupied_total, true, seed);
+		performMove(b->white_pawns, b->white_kings, b->black_pawns, b->black_kings, move_packed, seed);
+		printBoard(b[0]);
+
+
+		uint8_t from, with, to, dir;
+		unpack_u16_move(move_packed, from, with, to, dir);
+		printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
+		
+		break;
+
+	case false:
+		 move_packed = chooseMove(black_pawns, black_kings, white_kings | white_pawns, occupied_total, false, seed);
+		// from, with, to, dir;
+		unpack_u16_move(move_packed, from, with, to, dir);
+		printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
+
+		break;
+	}
+
+
 }
 
 
@@ -562,7 +680,6 @@ int main()
 	printBoard(board);
     
 	calcAllMovesCuda(board);
-
 
     return 0;
 }

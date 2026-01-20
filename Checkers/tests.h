@@ -54,7 +54,7 @@ __host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char 
 	}
 }
 
-void printBoard(Board board) {
+__host__ __device__ void printBoard(Board board) {
 
 	char buffer[72];
 	memset(buffer, ' ', 72);
@@ -633,6 +633,27 @@ Board kingPawnsNoCapture() {
 	b.white_kings = 0x10000001;
 	b.black_pawns = 0x0004C240;
 	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+
+Board kingPawnsBlack() {
+	Board b;
+	b.white_pawns = 0x00068240;
+	b.white_kings = 0;
+	b.black_pawns = 0x22301000;
+	b.black_kings = 0x10000001;
 	b.occupied_white = b.white_pawns | b.white_kings;
 	b.occupied_black = b.black_pawns | b.black_kings;
 	b.occupied_total = b.occupied_white | b.occupied_black;
