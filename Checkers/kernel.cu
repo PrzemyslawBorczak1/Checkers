@@ -285,12 +285,12 @@ __device__ uint32_t chooseMove(
 	uint32_t& seed
 ) {
 	uint8_t counter = 0;
-	bool is_capture;
+	bool is_capture = false;
 
 	uint32_t move_packed;
 
 
-	uint8_t with, to;
+	int8_t with, to;
 	char board_index = 0;
 
 	for (uint8_t i = 0; i < 32; i++) {
@@ -300,10 +300,15 @@ __device__ uint32_t chooseMove(
 		}
 
 		if (player_pawns & 1 << i) {
+
+
 			// bicie pionek
 			for (char j = 0; j < 4; j++) {
 				with = NEIGHBOURS[i][j];
 				to = CAPTURES[i][j];
+				if (with == -1 || to == -1) {
+					continue;
+				}
 
 				if ((opponenet_occupied & (1 << with))) {
 					if (!(occupied_total & (1 << to))) {
@@ -333,7 +338,7 @@ __device__ uint32_t chooseMove(
 				else {
 					with = NEIGHBOURS[i][2];
 				}
-				if (with >= 0 && with < 32) {
+				if (with != -1) {
 					if (!(occupied_total & (1 << with))) {
 						add_new_normal(
 							move_packed,
@@ -351,7 +356,7 @@ __device__ uint32_t chooseMove(
 					with = NEIGHBOURS[i][3];
 				}
 
-				if (with >= 0 && with < 32) {
+				if (with != -1) {
 					if (!(occupied_total & (1 << with))) {
 						add_new_normal(
 							move_packed,
@@ -534,6 +539,7 @@ __global__ void checkersKernel(Board* b, char* ret)
 	switch (true) {
 	case true:
 		printBoard(b[0]);
+		printf("Choosing white move\n");
 		uint32_t move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occupied_total, true, seed);
 		performMove(b->white_pawns, b->white_kings, b->black_pawns, b->black_kings, move_packed, seed);
 		printBoard(b[0]);
@@ -676,7 +682,7 @@ Error:
 int main()
 {	
 
-	Board board = firstRow();
+	Board board = kingLine3();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
