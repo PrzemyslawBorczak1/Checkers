@@ -54,7 +54,8 @@ __host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char 
 	}
 }
 
-__host__ __device__ void printBoard(Board board) {
+
+__host__ __device__ void printBoard(uint32_t black_pawns, uint32_t white_pawns, uint32_t black_kings, uint32_t white_kings) {
 
 	char buffer[72];
 	memset(buffer, ' ', 72);
@@ -66,10 +67,10 @@ __host__ __device__ void printBoard(Board board) {
 	}
 
 
-	writeBoardToBuff(buffer, board.black_pawns, 'b');
-	writeBoardToBuff(buffer, board.white_pawns, 'w');
-	writeBoardToBuff(buffer, board.black_kings, 'B');
-	writeBoardToBuff(buffer, board.white_kings, 'V');
+	writeBoardToBuff(buffer, black_pawns, 'b');
+	writeBoardToBuff(buffer, white_pawns, 'w');
+	writeBoardToBuff(buffer, black_kings, 'B');
+	writeBoardToBuff(buffer, white_kings, 'V');
 
 
 
@@ -90,6 +91,14 @@ __host__ __device__ void printBoard(Board board) {
 	printf("   a b c d e f g h\n\n");
 
 }
+
+
+__host__ __device__ void printBoard(Board board) {
+
+	printBoard(board.black_pawns, board.white_pawns, board.black_kings, board.white_kings);
+
+}
+
 
 __host__ __device__ void print_int(uint32_t n) {
 	char buffer[72];
@@ -665,5 +674,64 @@ Board kingPawnsBlack() {
 	b.is_white_move = true;
 	b.is_capture = false;
 
+	return b;
+}
+
+
+Board promotion() {
+	Board b;
+	b.white_pawns = 0x04040404;
+	b.white_kings = 0;
+	b.black_pawns = 0x22222222;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+
+
+	b.white_strength = 12;
+	b.black_strength = 12;
+	b.is_white_move = true;
+	b.is_capture = false;
+
+	return b;
+}
+
+
+Board kingLine4() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x80000000;
+	b.black_pawns = 0x04021013;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+	return b;
+}
+
+Board captureNoPromotion() {
+		Board b;
+	b.white_pawns = 0x00000404;
+	b.white_kings = 0;
+	b.black_pawns = 0x00008080;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+	return b;
+}
+
+Board capturePromotion() {
+	Board b;
+	b.white_pawns = 0x01826400;
+	b.white_kings = 0;
+	b.black_pawns = 0x44200180;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
 	return b;
 }

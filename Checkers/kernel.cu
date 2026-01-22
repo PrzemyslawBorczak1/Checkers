@@ -174,8 +174,9 @@ __device__ void addLandingSquareCapture_new(
 			found_square = true;
 		}
 
-		if (occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
-			if (!(occ_total & (1 << CAPTURES[ind][dir]))) {
+		if (NEIGHBOURS[ind][dir] != -1 && occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
+			if (CAPTURES[ind][dir] != -1 && !(occ_total & (1 << CAPTURES[ind][dir]))) {
+				printf("Captuere in old line dir %d\n", (dir + 3) % 4);
 				add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, dir);
 				found_square = true;
 			}
@@ -287,12 +288,11 @@ __device__ uint32_t chooseMove(
 	uint8_t counter = 0;
 	bool is_capture = false;
 
-	uint32_t move_packed;
+	uint32_t move_packed = 0;
 
 
 	int8_t with, to;
 	char board_index = 0;
-
 	for (uint8_t i = 0; i < 32; i++) {
 		
 		if (!((player_pawns | player_kings) & (1 << i))) {
@@ -402,51 +402,68 @@ __device__ uint32_t chooseKingNextMove(
 	uint32_t occ_enemy,
 	uint8_t from,
 	uint8_t dir,
-	int8_t with,
 	uint32_t& move_packed,
 	uint32_t& rng_reg,
 	uint8_t& count){
 
-	
-	uint8_t ind = NEIGHBOURS[with][dir];
-	bool found_square = false;
 
-	printf("ind: %d fro idx: %d init skip  %d\n", ind, from);
-	while (ind != -1) {
-		if (occ_total & (1 << ind)) {
-			break;
+		uint8_t i = 0;
+		int8_t ind = from;
+		bool found_square = false;
+		while(!(occ_total & (1 << ind))){
+			printf("ind whiule 1 init: %d\n", ind);
+			ind = NEIGHBOURS[ind][dir];
+			if(ind == -1){
+				break;
+			}
 		}
+		printf("Next move ind: %d\n", ind);
 
-		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 1) % 4) < 0) {
-			printf("Captuere dir %d\n", (dir + 1) % 4);
-			add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, (dir + 1) % 4);
-			found_square = true;
-		}
-		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 3) % 4) < 0) {
-			printf("Captuere dir %d\n", (dir + 3) % 4);
-			add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, (dir + 3) % 4);
-			found_square = true;
-		}
+		int8_t start = ind;
+		ind = NEIGHBOURS[ind][dir];
 
-		if (occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
-			if (!(occ_total & (1 << CAPTURES[ind][dir]))) {
-				add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, dir);
+		while (ind != -1) {
+			printf("ind while 2 init: %d\n", ind);
+			if (occ_total & (1 << ind)) {
+				break;
+			}
+
+			if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 1) % 4) < 0) {
+				printf("Captuere dir %d\n", (dir + 1) % 4);
+				add_new_dir_capture(move_packed, rng_reg, count, from, start, ind, (dir + 1) % 4);
 				found_square = true;
+			}
+			if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 3) % 4) < 0) {
+				printf("Captuere dir %d\n", (dir + 3) % 4);
+				add_new_dir_capture(move_packed, rng_reg, count, from, start, ind, (dir + 3) % 4);
+				found_square = true;
+			}
+
+			if (NEIGHBOURS[ind][dir] != -1 && occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
+				if (CAPTURES[ind][dir] != -1 && !(occ_total & (1 << CAPTURES[ind][dir]))) {
+					add_new_dir_capture(move_packed, rng_reg, count, from, start, ind, dir);
+					found_square = true;
+				}
+			}
+
+
+			ind = NEIGHBOURS[ind][dir];
+		}
+
+		if (!found_square) {
+			ind = NEIGHBOURS[start][dir];
+			while (ind != -1) {
+				if (occ_total & (1 << ind)) {
+					break;
+				}
+				add_new_dir_capture(move_packed, rng_reg, count, from, start, ind, NO_DIRECTION);
+				ind = NEIGHBOURS[ind][dir];
+
 			}
 		}
 
+	
 
-		ind = NEIGHBOURS[ind][dir];
-	}
-
-	if (!found_square) {
-		ind = NEIGHBOURS[with][dir];
-		while (ind != -1) {
-
-			add_new_dir_capture(move_packed, rng_reg, count, from, with, ind, NO_DIRECTION);
-			ind = NEIGHBOURS[ind][dir];
-		}
-	}
 }
 
 
@@ -456,53 +473,142 @@ __device__ void performMove(
 	uint32_t& opponent_pawns,
 	uint32_t& opponent_kings,
 	uint32_t move_packed,
+	bool is_white_move,
 	uint32_t& seed
 	) {
 
 	uint8_t from, with, to, dir;
 	unpack_u16_move(move_packed, from, with, to, dir);
+	printf("\n\n\n\n PErforming move \n\n\n");
 	printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
 
+	bool perfomred = false;
 	// normal move
 	if (with == 0) {
 		if (player_pawns & (1 << from)) {
 			player_pawns ^= (1 << from);
-			if (to % 4 == 3) {
+			if (to % 4 == 3 && ((to / 4) % 2) == 0 ||
+				to % 4 == 0 && ((to / 4) % 2) == 1) {
 				player_kings ^= (1 << to);
+
 			}
 			else {
 				player_pawns ^= (1 << to);
 			}
+
 		}
 		else {
 			player_kings ^= (1 << from);
 			player_kings |= (1 << to);
 		}
+		perfomred = true;
 	}
 	// znicie pionek
+	if (dir == UNKOWN_DIRECTION && !perfomred) {
+		printf("Capture\n");
 
+		int8_t new_from, new_with, new_to, new_dir;
 
-	// king single capture
-	if (dir == NO_DIRECTION) {
-		opponent_kings &= ~(1 << with);
-		opponent_pawns &= ~(1 << with);
+		player_pawns ^= 1 << from;
 
-		player_kings ^= (1 << from);
-		player_kings |= (1 << to);
+		 new_from = to;
+		while (dir == UNKOWN_DIRECTION) {
+			printf("while\n");
+			uint32_t next_move = 0;
+			uint8_t count = 0;
+			new_from = to;
+
+			opponent_pawns &= ~(1 << with);
+			opponent_kings &= ~(1 << with);
+			/*printf("\nColor may not be right:\n");
+			printBoard(
+				player_pawns,
+				opponent_pawns,
+				player_kings,
+				opponent_kings
+			);*/
+
+			for (char j = 0; j < 4; j++) {
+				printf("fro\n");
+				new_with = NEIGHBOURS[new_from][j];
+				new_to = CAPTURES[new_from][j];
+				if (new_with == -1 || new_to == -1) {
+					continue;
+				}
+
+				if (((opponent_pawns | opponent_kings) & (1 << new_with))) {
+					if (!((opponent_kings | opponent_pawns | player_pawns | player_kings) & (1 << new_to))) {
+
+						add_new_dir_capture(
+							next_move,
+							seed,
+							count,
+							(uint8_t)new_from,
+							(uint8_t)new_with,
+							(uint8_t)new_to,
+							UNKOWN_DIRECTION
+						);
+					}
+				}
+
+			}
+			unpack_u16_move(next_move, from, with, to, dir);
+			printf("Unpacked next move: %d %d %d dir %d\n", from, with, to, dir);
+		}
+
+		printf("Final to %d\n", new_from);
+		if((is_white_move && new_from % 4 == 3 && ((new_from / 4) % 2) == 0) || 
+			(!is_white_move && new_from % 4 == 0 && ((new_from / 4) % 2) == 1)) {
+			player_kings |= 1 << new_from;
+		}
+		else
+		player_pawns |= 1 << new_from;
+		perfomred = true;
 	}
-	// king multiple capture
-	if (dir < NO_DIRECTION) {
-		opponent_kings &= ~(1 << with);
-		opponent_pawns &= ~(1 << with);
 
-		player_kings &= ~(1 << from);
 
-		uint32_t next_move = 0;
-		uint8_t count = 0;
-		/*chooseKingNextMove(opponent_kings | opponent_pawns | player_kings | player_pawns,
-			opponent_kings | opponent_pawns, to, dir, skip, next_move, seed, count);*/
+
+	while (dir <= NO_DIRECTION && !perfomred) {
+		printf("King capture\n");
+		// king single capture
+		if (dir == NO_DIRECTION) {
+			printf("King single capture\n");
+			opponent_kings &= ~(1 << with);
+			opponent_pawns &= ~(1 << with);
+
+			player_kings &= ~(1 << from);
+			player_kings |= (1 << to);
+
+			perfomred = true;
+			break;
+		}
+		// king multiple capture
+		if (dir < NO_DIRECTION) {
+			printf("King multipe capture\n");
+			opponent_kings &= ~(1 << with);
+			opponent_pawns &= ~(1 << with);
+
+			player_kings &= ~(1 << from);
+
+			uint32_t next_move = 0;
+			uint8_t count = 0;
+
+
+			chooseKingNextMove(
+				opponent_kings | opponent_pawns | player_kings | player_pawns,
+				opponent_kings | opponent_pawns,
+				to,
+				dir,
+				next_move,
+				seed,
+				count);
+
+			unpack_u16_move(next_move, from, with, to, dir);
+			printf("Next move packed: %u\n %d %d %d dir %d\n", next_move, from, with, to, dir);
+		}
+
+		
 	}
-
 }
 
 
@@ -520,7 +626,7 @@ __global__ void checkersKernel(Board* b, char* ret)
 	/*int tid = blockIdx.x * blockDim.x + threadIdx.x;
 	uint32_t seed = base_seed ^ (uint32_t)tid;
 	seed = seed ? seed : 1u;*/
-	uint32_t seed = 12345678u;
+	uint32_t seed = 12123u;
 
 
 	uint32_t white_pawns = b->white_pawns;
@@ -530,34 +636,49 @@ __global__ void checkersKernel(Board* b, char* ret)
 	uint32_t white_kings = b->white_kings;
 
 
-	uint32_t occupied_total = b->occupied_total;
 
 	int thread_index = threadIdx.x;
+	uint32_t move_packed;
+
+	bool move = true;
+	for (int i = 0; i < 50; i++) {
+		uint32_t occ_total = white_pawns | black_pawns | white_kings | black_kings;
+		move_packed = 0;
+		switch (move) {
+		case true:
+			printf("Choosing white move\n");
+			move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occ_total, true, seed);
+			performMove(white_pawns, white_kings, black_pawns, black_kings, move_packed, true, seed);
+			
 
 
+			//uint8_t from, with, to, dir;
+			//unpack_u16_move(move_packed, from, with, to, dir);
+			//printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
 
-	switch (true) {
-	case true:
-		printBoard(b[0]);
-		printf("Choosing white move\n");
-		uint32_t move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occupied_total, true, seed);
-		performMove(b->white_pawns, b->white_kings, b->black_pawns, b->black_kings, move_packed, seed);
-		printBoard(b[0]);
+			break;
 
+		case false:
+			printf("Choosing black move\n");
+			move_packed = chooseMove(black_pawns, black_kings, white_kings | white_pawns, occ_total, false, seed);
+			performMove(black_pawns, black_kings, white_pawns, white_kings, move_packed, false, seed);
+			//printBoard(b[0]);
+			// from, with, to, dir;
+			//unpack_u16_move(move_packed, from, with, to, dir);
+			//printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
 
-		uint8_t from, with, to, dir;
-		unpack_u16_move(move_packed, from, with, to, dir);
-		printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
-		
-		break;
-
-	case false:
-		 move_packed = chooseMove(black_pawns, black_kings, white_kings | white_pawns, occupied_total, false, seed);
-		// from, with, to, dir;
-		unpack_u16_move(move_packed, from, with, to, dir);
-		printf("Move packed: %u\n %d %d %d dir %d\n", move_packed, from, with, to, dir);
-
-		break;
+			break;
+		}
+		if (move_packed == 0) {
+			printf("DIDINT FOUND MOVE BREAKING\n");
+			break;
+		}
+		printBoard(
+			black_pawns,
+			white_pawns,
+			black_kings,
+			white_kings);
+		move = !move;
 	}
 
 
@@ -682,7 +803,7 @@ Error:
 int main()
 {	
 
-	Board board = kingLine3();
+	Board board = capturePromotion();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
