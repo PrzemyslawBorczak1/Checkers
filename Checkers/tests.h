@@ -750,3 +750,15 @@ Board capturePromotion() {
 	b.occupied_total = b.occupied_white | b.occupied_black;
 	return b;
 }
+
+Board kingArena() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x08080808;
+	b.black_pawns = 0;
+	b.black_kings = 0x10101010;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+	return b;
+}
