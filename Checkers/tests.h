@@ -134,6 +134,7 @@ __host__ __device__ void print_bin(uint32_t n)
 
 
 
+
 Board captureBoard() {
 
 	Board b;
@@ -711,6 +712,20 @@ Board kingLine4() {
 
 	return b;
 }
+
+Board kingLine5() {
+	Board b;
+	b.white_pawns = 0;
+	b.white_kings = 0x80000000;
+	b.black_pawns = 0x00001013;
+	b.black_kings = 0;
+	b.occupied_white = b.white_pawns | b.white_kings;
+	b.occupied_black = b.black_pawns | b.black_kings;
+	b.occupied_total = b.occupied_white | b.occupied_black;
+
+	return b;
+}
+
 
 Board captureNoPromotion() {
 		Board b;

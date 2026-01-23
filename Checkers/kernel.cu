@@ -10,6 +10,12 @@
 
 __device__ __constant__  int8_t NEIGHBOURS[32][4];
 __device__ __constant__  int8_t CAPTURES[32][4];
+__device__ __constant__  uint32_t RAYS[32][4];
+
+
+int8_t Neighbours[32][4];
+int8_t Captures[32][4];
+uint32_t Rays[32][4];
 
 // 1 - 4  damka nie skonczone bicie
 #define NO_DIRECTION 5 // damka skonczone bicie
@@ -100,112 +106,120 @@ __device__ __forceinline__ void add_new_dir_capture(
 
 
 
+
+
+
+
+// zwraca liczbe wolnych pol w danym kierunku
+// lub -index przeciwnika w przypadku bicia (nigdy 0)
 __device__ int8_t countEmptySquares(
 	uint32_t occ_total,
 	uint32_t occ_enemy,
 	uint8_t index,
 	uint8_t dir
 ) {
+	uint32_t ray = RAYS[index][dir];
+	uint32_t blockers = ray & occ_total;
 
-	int8_t ind = NEIGHBOURS[index][dir];
-	int8_t ret = 0;
-
-	while (ind != -1) {
-		// pole zajete
-		if (occ_total & (1 << ind)) {
-			// zajete przez przeciwnika
-			if (occ_enemy & (1 << ind)) {
-				printf("enemy  %d\n", ind);
-				// mozliwe jest wybicie
-				if (NEIGHBOURS[ind][dir] != -1 && !(occ_total & (1 << NEIGHBOURS[ind][dir]))) {
-					printf("Captiure ended in  %d\n", NEIGHBOURS[ind][dir]);
-					return -(ret + 2);
-				}
-				else {
-					break;
-				}
-			}
-			else {
-				break;
-			}
-		}
-
-		ind = NEIGHBOURS[ind][dir];
-		ret++;
+	// popc ilosc bitow == 1
+	if (blockers == 0) {
+		return (int8_t)__popc(ray); 
 	}
-	return ret;
+
+	// pierwsza przeszkoda (index bomaski u32)
+	// ffs liczba 0 od najmniej znaczącego bitu
+	// clz liczba 0 od najbardziej znaczącego bitu
+	int blocker_idx;
+	if (dir == 1 || dir == 2) { 
+		blocker_idx = __ffs(blockers) - 1;
+	}
+	else {
+		blocker_idx = 31 - __clz(blockers);
+	}
+
+	// czy jest bicie
+	if (occ_enemy & (1u << blocker_idx)) {
+		int8_t landing_sq = NEIGHBOURS[blocker_idx][dir];
+
+		if (landing_sq != -1 && !(occ_total & (1u << landing_sq))) {
+			return -blocker_idx;
+		}
+	}
+
+
+	// pola przed przeszkodą
+	// -1 tworzy maskę z jedynkami przed przeszkodą
+	if (dir == 1 || dir == 2) {
+		return (int8_t)__popc(ray & ((1u << blocker_idx) - 1));
+	}
+	else {
+		uint32_t mask_above = (blocker_idx == 31) ? 0 : (0xFFFFFFFFu << (blocker_idx + 1));
+		return (int8_t)__popc(ray & mask_above);
+	}
+
 }
 
-
-
+// dodaje pola lądowania dla bicia damką przed rozgalezieniem albo finalne
 __device__ void addLandingSquareCapture_new(
 	uint32_t occ_total,
 	uint32_t occ_enemy,
-	uint8_t index,
+	uint8_t capture_from,
+	int8_t enemy_idx,
 	uint8_t dir,
-	int8_t skip,
 	uint32_t& move_packed,
-	uint32_t& rng_reg,
+	uint32_t& seed,
 	uint8_t& count) {
 
-	uint8_t i = 0;
-	int8_t ind = index;
 	bool found_square = false;
-	for (i = 0; i < skip - 1; i++) {
-		ind = NEIGHBOURS[ind][dir];
-	}
-	int8_t start = ind;
-	ind = NEIGHBOURS[ind][dir];
+	int8_t it = NEIGHBOURS[enemy_idx][dir];
 
-	printf("ind: %d fro idx: %d init skip  %d\n", ind, index, skip);
-	while (ind != -1){
-		if (occ_total & (1 << ind)) {
-			break;
-		}
-
-		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 1) % 4) < 0) {
-			printf("Captuere dir %d\n", (dir + 1) % 4);
-			add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, (dir + 1) % 4);
-			found_square = true;
-		}
-		if (countEmptySquares(occ_total, occ_enemy, ind, (dir + 3) % 4) < 0) {
-			printf("Captuere dir %d\n", (dir + 3) % 4);
-			add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, (dir + 3) % 4);
-			found_square = true;
-		}
-
-		if (NEIGHBOURS[ind][dir] != -1 && occ_enemy & (1 << NEIGHBOURS[ind][dir])) {
-			if (CAPTURES[ind][dir] != -1 && !(occ_total & (1 << CAPTURES[ind][dir]))) {
-				printf("Captuere in old line dir %d\n", (dir + 3) % 4);
-				add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, dir);
+	printf("[top landin] from %d, with %d, it %d, dir %d\n", capture_from, enemy_idx, it, dir);
+	while (it != -1){
+		printf("it in while: %d\n", it);
+		// zajete pole na glownej linii z mozliwoscia bicia
+		if (occ_enemy & (1 << it)) {
+			if (NEIGHBOURS[it][dir] != -1 && !(occ_total & (1 << NEIGHBOURS[it][dir]))) {
+				printf("Captuere in main line dir %d\n", dir);
+				add_new_dir_capture(move_packed, seed, count, capture_from, enemy_idx, NEIGHBOURS[it][dir], dir);
 				found_square = true;
 			}
 		}
 
+		// zajete pole bez mozliwosci bicia
+		if (occ_total & (1 << it)) {
+			break;
+		}
 
-		ind = NEIGHBOURS[ind][dir];
+		// mozliwosc rozgalezienia bicia
+		if (countEmptySquares(occ_total, occ_enemy, it, (dir + 1) % 4) < 0) {
+			printf("Captuere dir %d\n", (dir + 1) % 4);
+			add_new_dir_capture(move_packed, seed, count, capture_from, enemy_idx, it, (dir + 1) % 4);
+			found_square = true;
+		}
+		if (countEmptySquares(occ_total, occ_enemy, it, (dir + 3) % 4) < 0) {
+			printf("Captuere dir %d\n", (dir + 3) % 4);
+			add_new_dir_capture(move_packed, seed, count, capture_from, enemy_idx, it, (dir + 3) % 4);
+			found_square = true;
+		}
+
+
+		it = NEIGHBOURS[it][dir];
 	}
 
+	printf("\nfrom %d, with %d after_enemy %d dir %d found square %d\n", capture_from, enemy_idx, NEIGHBOURS[enemy_idx][dir], dir, found_square);
 	if (!found_square) {
-		ind = NEIGHBOURS[start][dir];
-		while (ind != -1) {
-			if (occ_total & (1 << ind)) {
-				break;
-			}
-			add_new_dir_capture(move_packed, rng_reg, count, index, start, ind, NO_DIRECTION);
-			ind = NEIGHBOURS[ind][dir];
-			
+		printf("Normal landing squares\n");
+		it = NEIGHBOURS[enemy_idx][dir];
+		while (it != -1 && !(occ_total & (1 << it))) {
+			add_new_dir_capture(move_packed, seed, count, capture_from, enemy_idx, it, NO_DIRECTION);
+			it = NEIGHBOURS[it][dir];			
 		}
 	}
 
 }
 
 
-
-
-
-
-
+// obsluga ruchow damka
 __device__ __forceinline__ void king_move_new(
 	uint32_t& move_packed,
 	uint32_t& rng_reg,
@@ -220,6 +234,7 @@ __device__ __forceinline__ void king_move_new(
 	uint8_t i;
 	bool found_capture = false;
 
+	// sprawdz czy w jakims kierunku jest bicie
 	for (i = 0; i < 4; i++) {
 		ret[i] = countEmptySquares(occ_total, occ_enemy, index, i);
 		printf("ret: %d\n", ret[i]);
@@ -228,28 +243,30 @@ __device__ __forceinline__ void king_move_new(
 		}
 	}
 
+	// znalezoino bicie usuniecie wszystkich normalnych ruchow
 	if (!was_capture && found_capture) {
 		move_packed = 0;
 		count = 0;
 		was_capture = true;
 	}
 
+	// nie znaleziono bicia a bylo juz bicie wczesniej
 	printf("Was cature: %d\n", was_capture);
 	if (was_capture && !found_capture) {
 		return;
 	}
 	
 	if (found_capture) {
-
 		printf("found capture: %d\n", found_capture);
+		// dodanie bicia i pol na ktorych moze wyladowac pionek przed rozgalezieniem
 		for (i = 0; i < 4; i++) {
 			if (ret[i] < 0) {
 				addLandingSquareCapture_new(
 					occ_total,
 					occ_enemy,
 					index,
-					i,
 					-ret[i],
+					i,
 					move_packed,
 					rng_reg,
 					count
@@ -258,11 +275,10 @@ __device__ __forceinline__ void king_move_new(
 		}
 	}
 	else{
+		// dodanie normalnych ruchow
 		for (i = 0; i < 4; i++) {
-
-			uint8_t j = 0;
 			int8_t current = index;
-			for (j = 0; j < ret[i]; j++) {
+			for (uint8_t j = 0; j < ret[i]; j++) {
 				current = NEIGHBOURS[current][i];
 				add_new_normal(move_packed, rng_reg, count, index, current);
 			}
@@ -272,16 +288,11 @@ __device__ __forceinline__ void king_move_new(
 }
 
 
-
-
-
-
-
 __device__ uint32_t chooseMove(
 	uint32_t player_pawns,
 	uint32_t player_kings,
-	uint32_t opponenet_occupied,
-	uint32_t occupied_total,
+	uint32_t occ_opponenet,
+	uint32_t occ_total,
 	bool is_white_move,
 	uint32_t& seed
 ) {
@@ -289,108 +300,113 @@ __device__ uint32_t chooseMove(
 	bool is_capture = false;
 
 	uint32_t move_packed = 0;
-
-
 	int8_t with, to;
-	char board_index = 0;
-	for (uint8_t i = 0; i < 32; i++) {
-		
-		if (!((player_pawns | player_kings) & (1 << i))) {
-			continue;
-		}
-
-		if (player_pawns & 1 << i) {
 
 
-			// bicie pionek
-			for (char j = 0; j < 4; j++) {
-				with = NEIGHBOURS[i][j];
-				to = CAPTURES[i][j];
-				if (with == -1 || to == -1) {
-					continue;
-				}
+	// obsluga damek
+	uint32_t figures = player_kings;
+	while (figures)
+	{
+		uint8_t i = __ffs(figures) - 1;
+		figures &= ~(1u << i);
 
-				if ((opponenet_occupied & (1 << with))) {
-					if (!(occupied_total & (1 << to))) {
-						if (is_capture == false) {
-							counter = 0;
+		printf("Checking king moves for index %d\n", i);
 
-							is_capture = true;
-						}
-						add_new_dir_capture(
-							move_packed,
-							seed,
-							counter,
-							(uint8_t)i,
-							(uint8_t)with,
-							(uint8_t)to,
-							UNKOWN_DIRECTION
-						);
-					}
-				}
-			}
-
-			// normal move
-			if (is_capture == false) {
-				if (is_white_move) {
-					with = NEIGHBOURS[i][0];
-				}
-				else {
-					with = NEIGHBOURS[i][2];
-				}
-				if (with != -1) {
-					if (!(occupied_total & (1 << with))) {
-						add_new_normal(
-							move_packed,
-							seed,
-							counter,
-							(uint8_t)i,
-							(uint8_t)with
-						);
-					}
-				}
-				if (is_white_move) {
-					with = NEIGHBOURS[i][1];
-				}
-				else {
-					with = NEIGHBOURS[i][3];
-				}
-
-				if (with != -1) {
-					if (!(occupied_total & (1 << with))) {
-						add_new_normal(
-							move_packed,
-							seed,
-							counter,
-							(uint8_t)i,
-							(uint8_t)with
-						);
-					}
-				}
-			}
-		}
-
-		if (player_kings & 1 << i) {
-			printf("Checking king moves for index %d\n", i);
-
-			king_move_new(
-				move_packed,
-				seed,
-				counter,
-				occupied_total,
-				opponenet_occupied,
-				is_capture,
-				i
-			);
-		}
-
-		board_index++;
+		king_move_new(
+			move_packed,
+			seed,
+			counter,
+			occ_total,
+			occ_opponenet,
+			is_capture,
+			i
+		);
 	}
+
+	// obsluga zwyklych pionkow
+	figures = player_pawns;
+	while (figures)
+	{
+		// ffs - index pierwszego bitu 1 od najmniej znaczacego
+		uint8_t i = __ffs(figures) - 1;
+		figures &= ~(1u << i);
+
+
+		// bicie pionek
+		for (char j = 0; j < 4; j++) {
+			with = NEIGHBOURS[i][j];
+			to = CAPTURES[i][j];
+			if (with == -1 || to == -1) {
+				continue;
+			}
+
+			if ((occ_opponenet & (1 << with))) {
+				if (!(occ_total & (1 << to))) {
+					if (is_capture == false) {
+						counter = 0;
+
+						is_capture = true;
+					}
+					add_new_dir_capture(
+						move_packed,
+						seed,
+						counter,
+						(uint8_t)i,
+						(uint8_t)with,
+						(uint8_t)to,
+						UNKOWN_DIRECTION
+					);
+				}
+			}
+		}
+
+		// normalny ruch
+		if (is_capture == false) {
+			if (is_white_move) {
+				with = NEIGHBOURS[i][0];
+			}
+			else {
+				with = NEIGHBOURS[i][2];
+			}
+			if (with != -1) {
+				if (!(occ_total & (1 << with))) {
+					add_new_normal(
+						move_packed,
+						seed,
+						counter,
+						(uint8_t)i,
+						(uint8_t)with
+					);
+				}
+			}
+			if (is_white_move) {
+				with = NEIGHBOURS[i][1];
+			}
+			else {
+				with = NEIGHBOURS[i][3];
+			}
+
+			if (with != -1) {
+				if (!(occ_total & (1 << with))) {
+					add_new_normal(
+						move_packed,
+						seed,
+						counter,
+						(uint8_t)i,
+						(uint8_t)with
+					);
+				}
+			}
+		}
+
+	}
+	
 
 	printf("Board counter: %d\n", counter);
 	return move_packed;
-
 }
+
+
 
 
 
@@ -641,10 +657,10 @@ __global__ void checkersKernel(Board* b, char* ret)
 	uint32_t move_packed;
 
 	bool move = true;
-	for (int i = 0; i < 50; i++) {
+	for (int i = 0; i < 1; i++) {
 		uint32_t occ_total = white_pawns | black_pawns | white_kings | black_kings;
 		move_packed = 0;
-		switch (move) {
+		switch (true) {
 		case true:
 			printf("Choosing white move\n");
 			move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occ_total, true, seed);
@@ -687,10 +703,8 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 
 
-int8_t Neighbours[32][4];
-int8_t Captures[32][4];
 
-void buildHelperTabs() {
+void buildNeighbourTabs() {
 	 const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
 
 	 for (int i = 0; i < 32; i++) {
@@ -730,6 +744,28 @@ void buildHelperTabs() {
 	 }
 }
 
+void buildRayTab() {
+	for (int i = 0; i < 32; i++) { 
+		for (int dir = 0; dir < 4; dir++) { 
+
+			uint32_t mask = 0;
+			int current = i;
+
+			while (true) {
+				current = Neighbours[current][dir];
+				if (current == -1) break; 
+
+				mask |= (1 << current); 
+			}
+
+			Rays[i][dir] = mask;
+		}
+	}
+}
+
+
+
+
 cudaError_t calcAllMovesCuda(Board board_in) {
 
 
@@ -740,7 +776,7 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		goto Error;
 	}
 
-	buildHelperTabs();
+	buildNeighbourTabs();
 	cudaStatus = cudaMemcpyToSymbol(NEIGHBOURS, Neighbours, sizeof(Neighbours));
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpyToSymbol failed!");
@@ -752,6 +788,14 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		fprintf(stderr, "cudaMemcpyToSymbol failed!");
 		goto Error;
 	}
+
+	buildRayTab();
+	cudaStatus = cudaMemcpyToSymbol(RAYS, Rays, sizeof(Rays));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpyToSymbol failed!");
+		goto Error;
+	}
+
 
 	Board* d_in = nullptr;
 	char d_ret[32];
@@ -803,7 +847,7 @@ Error:
 int main()
 {	
 
-	Board board = capturePromotion();
+	Board board = kingAllDir();
 	printBoard(board);
     
 	calcAllMovesCuda(board);
