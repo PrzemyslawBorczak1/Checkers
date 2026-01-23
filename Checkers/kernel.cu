@@ -666,35 +666,46 @@ __device__ void performMove(
 
 
 
+#define NO_PROGRES_LIMIT 30 // po 15 ruchow z dwoch stron bez progresu gra jest przerywana (przegrywa ten ktory wykon aruch bez progresu)
+#define MIN_MOVES 200 // po 100 ruchach z kazdej strony mozliwe jest przerwanie gry przy znaczenej przewadze (3 razy wiecej materialu)
 
-
-
-__global__ void checkersKernel(Board* b, char* ret)
+// simulates a single game
+// return true if white wins
+__device__ bool simulate(
+	uint32_t white_pawns,
+	uint32_t white_kings,
+	uint32_t black_pawns,
+	uint32_t black_kings,
+	uint32_t seed
+)
 {
-	// todo add sth like thsi
-	/*int tid = blockIdx.x * blockDim.x + threadIdx.x;
-	uint32_t seed = base_seed ^ (uint32_t)tid;
-	seed = seed ? seed : 1u;*/
-	uint32_t seed = 12123u;
-
-
-	uint32_t white_pawns = b->white_pawns;
-	uint32_t black_pawns = b->black_pawns;
-
-	uint32_t black_kings = b->black_kings;
-	uint32_t white_kings = b->white_kings;
-
-
-
-	int thread_index = threadIdx.x;
+	
 	uint32_t move_packed;
+	bool is_white_move = true;
+	bool is_white_winner = false;
 
-	bool move = true;
-	for (int i = 0; i < 30; i++) {
+
+	uint8_t no_progres_counter = 0;
+	uint16_t total_moves = 0;
+
+
+	uint8_t white_strength = __popc(white_pawns) + 2 * __popc(white_kings);
+	uint8_t black_strength = __popc(black_pawns) + 2 * __popc(black_kings);
+
+	while (1) {
+		total_moves++;
 		uint32_t occ_total = white_pawns | black_pawns | white_kings | black_kings;
 		move_packed = 0;
+		
+		uint32_t old_white_pawns = white_pawns;
+		uint32_t old_black_pawns = black_pawns;
 
-		switch (move) {
+
+		uint8_t old_white_strength = white_strength;
+		uint8_t old_black_strength = black_strength;
+
+
+		switch (is_white_move) {
 		case true:
 			printf("Choosing white move\n");
 			move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occ_total, true, seed);
@@ -708,23 +719,88 @@ __global__ void checkersKernel(Board* b, char* ret)
 
 			break;
 		}
+		white_strength = __popc(white_pawns) + 2 * __popc(white_kings);
+		black_strength = __popc(black_pawns) + 2 * __popc(black_kings);
 
-		if (move_packed == 0) {
-			printf("DIDINT FOUND MOVE BREAKING\n");
-			break;
-		}
+
+
 		printBoard(
 			black_pawns,
 			white_pawns,
 			black_kings,
 			white_kings);
-		move = !move;
+
+
+		// brak progresu
+		if(
+			old_black_pawns == black_pawns &&
+			old_white_pawns == white_pawns &&
+			old_white_strength == white_strength &&
+			old_black_strength == black_strength
+
+			) {
+			no_progres_counter++;
+			if(no_progres_counter > NO_PROGRES_LIMIT) {
+				printf("BRAK PROGRESSU BREAKING\n");
+				is_white_winner = !is_white_move;
+				break;
+			}
+		}
+		else {
+			no_progres_counter = 0;
+		}
+
+		// uzyskanie pzewagi po pewnej liczbie ruchow
+		if (total_moves > MIN_MOVES) {
+			printf("white strength %d black strength %d\n", white_strength, black_strength);
+			if(white_strength >= black_strength * 3) {
+				is_white_winner = true;
+				printf("PRZEWAGA BIALY BREAKING\n");
+				break;
+			}
+
+			if (black_strength >= white_strength * 3) {
+				is_white_winner = false;
+				printf("PRZEWAGA CZARNY BREAKING\n");
+				break;
+			}
+		}
+
+
+		// brak mozliwych ruchow
+		if (move_packed == 0) {
+			is_white_winner = !is_white_move;
+			printf("DIDINT FOUND MOVE BREAKING\n");
+			break;
+		}
+
+		is_white_move = !is_white_move;
 	}
 
+	return is_white_winner;
 
 }
 
+__global__ void MCTSKernel(Board* b, char* ret) {
 
+	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+
+	bool is_white_winner = simulate(
+		b->white_pawns,
+		b->white_kings,
+		b->black_pawns,
+		b->black_kings,
+		12345678u + (uint32_t)tid
+	);
+
+	if (is_white_winner) {
+		printf("White winner\n");
+	}
+	else {
+		printf("Black winner\n");
+	}
+	// to be implemented
+}
 
 
 
@@ -843,7 +919,7 @@ cudaError_t calcAllMovesCuda(Board board_in) {
 		goto Error;
 	}
 
-	checkersKernel << <1, 1 >> > (d_in, d_ret);
+	MCTSKernel << <1, 1 >> > (d_in, d_ret);
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
@@ -871,7 +947,7 @@ Error:
 int main()
 {
 
-	Board board = kingArena();
+	Board board = startBoard();
 	printBoard(board);
 
 	calcAllMovesCuda(board);
