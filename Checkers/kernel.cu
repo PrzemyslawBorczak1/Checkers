@@ -1,9 +1,13 @@
-﻿
+﻿#pragma once
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
-#include "tests.h"
+#include <cstdint>
+#include <cstring>
+
+#include "cpu_common.h"
+
 
 
 __device__ __constant__  int8_t NEIGHBOURS[32][4];
@@ -817,7 +821,6 @@ __global__ void MCTSKernel(Board* b, char* ret) {
 }
 
 
-
 void buildNeighbourTabs() {
 	const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
 
@@ -876,8 +879,6 @@ void buildRayTab() {
 		}
 	}
 }
-
-
 
 
 cudaError_t calcAllMovesCuda(Board board_in) {
@@ -988,15 +989,15 @@ Error:
 }
 
 
-int main()
-{
-
-	Board board = startBoard();
-	printBoard(board);
-
-	calcAllMovesCuda(board);
-
-	return 0;
-}
+//int main()
+//{
+//
+//	Board board = startBoard();
+//	printBoard(board);
+//
+//	calcAllMovesCuda(board);
+//
+//	return 0;
+//}
 
 
