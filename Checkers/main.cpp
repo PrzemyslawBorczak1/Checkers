@@ -3,7 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "player.h"
+#include "mcts_player.h"
+#include "human_player.h"
 #include "common.h"
 
 #define GT_HH 0
@@ -25,10 +26,6 @@ void usage(void) {
         "-game_type  0 = czlowiek-czlowiek, 1 = czlowiek-komputer, 2 = komputer-komputer\n"
         "-color      0 = biale, 1 = czarne  (w trybie 1 to kolor czlowieka)\n"
         "\n"
-        "Przyklady:\n"
-        "  checkers game.txt 2 0 0\n"
-        "  checkers zapis.txt 3 1 1\n"
-        "  checkers out.txt 1 2 0\n"
     );
 }
 
@@ -113,7 +110,7 @@ void decide_players(const Options* opt, int* white_is_human, int* black_is_human
 }
 
 
-
+#define NO_PROGRESS_LIMIT 30
 
 int main(int argc, char** argv) {
     // TODO: usunac - testowe argv
@@ -143,36 +140,75 @@ int main(int argc, char** argv) {
     if(white_is_human)
         white_player = new HumanPlayer(Color::WHITE);
 	else
-		white_player = new AiPlayer(Color::WHITE);
+		white_player = new MCTSPlayer(Color::WHITE, opt.time_sec);
 
     Player* black_player;
     if(black_is_human)
         black_player = new HumanPlayer(Color::BLACK);
 	else
-		black_player = new AiPlayer(Color::BLACK);
+		black_player = new MCTSPlayer(Color::BLACK, opt.time_sec);
 
     Color side_to_move = Color::WHITE;
-
+    char* move_str;
+    Color loser;
+	int no_progress_count = 0;
     while (1) {
+
+		printf("\n\n=====================================\n");
+		printf("No progress count: %d\n", no_progress_count);
+        if (side_to_move == Color::WHITE)
+            printf("White to move:\n");
+        else
+            printf("Black to move:\n");
 		printBoard(board);
-        char* move_str = NULL;
+		Board old_board = board;
+		int old_white_pawn_count = __popcnt(board.white_pawns);
+		int old_black_pawn_count = __popcnt(board.black_pawns);
 
         if (side_to_move == Color::WHITE)
-            move_str = white_player->MakeMove(board, opt.time_sec);
+            move_str = white_player->MakeMove(board);
         else
-            move_str = black_player->MakeMove(board, opt.time_sec);
+            move_str = black_player->MakeMove(board);
 
-        // TODO: tu bêdzie parse+apply albo (jak chcesz) gracz zwraca ju¿ Move
-        printf("%s: %s\n", (side_to_move == Color::WHITE) ? "W" : "B",
-            move_str ? move_str : "(null)");
 
-        // Zmiana strony
+        // no move
+        if(move_str[0] == '\0') {
+			loser = side_to_move; 
+            printf("No moves: %s\n", move_str);
+            break;
+		}
+
+
+		// no progress 
+        int white_pawn_count = __popcnt(board.white_pawns);
+        int black_pawn_count = __popcnt(board.black_pawns);
+
+        if (old_board.white_pawns == board.white_pawns &&
+            old_board.black_pawns == board.black_pawns &&
+            old_white_pawn_count == white_pawn_count &&
+            old_black_pawn_count == black_pawn_count
+            ) {
+            no_progress_count++;
+            if (no_progress_count > NO_PROGRESS_LIMIT) {
+                loser = side_to_move;
+                printf("%d Move without progress: %s\n", no_progress_count, move_str);
+                break;
+            }
+        }
+        else {
+            no_progress_count = 0;
+        }
+
+
+        printf("Move: %s\n", move_str);
+
         side_to_move = (side_to_move == Color::WHITE) ? Color::BLACK : Color::WHITE;
     }
 
-    // (nieosi¹galne w tej wersji, bo while(1))
-    delete white_player;
-    delete black_player;
+    if (loser == Color::WHITE)
+		printf("Black wins!\n");
+    else
+        printf("White wins!\n");
 
     return 0;
 }

@@ -11,11 +11,17 @@
     <ClCompile Include="common.cpp">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="mcts_player.h">
+      <Filter>players</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tests.h" />
     <ClInclude Include="common.h">
       <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="human_player.h">
+      <Filter>players</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
