@@ -5,31 +5,31 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="player.h">
-      <Filter>players</Filter>
-    </ClCompile>
     <ClCompile Include="common.cpp">
       <Filter>common</Filter>
-    </ClCompile>
-    <ClCompile Include="mcts_player.h">
-      <Filter>players</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tests.h" />
-    <ClInclude Include="common.h">
-      <Filter>common</Filter>
+    <ClInclude Include="player.h">
+      <Filter>players</Filter>
+    </ClInclude>
+    <ClInclude Include="mcts_player.h">
+      <Filter>players</Filter>
     </ClInclude>
     <ClInclude Include="human_player.h">
       <Filter>players</Filter>
     </ClInclude>
+    <ClInclude Include="common.h">
+      <Filter>common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="players">
-      <UniqueIdentifier>{b7668166-d7aa-46ef-b974-e29025957ffe}</UniqueIdentifier>
-    </Filter>
     <Filter Include="common">
-      <UniqueIdentifier>{91b73805-23f6-4ed1-bac6-1177a39b0d17}</UniqueIdentifier>
+      <UniqueIdentifier>{4b19762a-8058-419b-8208-339e2ccfc5c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="players">
+      <UniqueIdentifier>{8d36ec97-36bb-4a8c-a6ed-77c96c013288}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
 </Project>

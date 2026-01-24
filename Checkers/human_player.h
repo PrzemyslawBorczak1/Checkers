@@ -144,7 +144,7 @@ public:
     HumanPlayer(Color c) : Player(c) {}
 
     char* MakeMove(Board& board)  {
-        printf("\nHuman ruch");
+        printf("\nHuman ruch\n\n");
 
 		bool is_capture = isCaptureOnBoard(board);
         char delim;
