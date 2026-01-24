@@ -52,7 +52,7 @@ __device__ __forceinline__ void addKingBranchingCapture(
 	uint8_t dir,
 	uint8_t next_enemy
 ) {
-	printf("Add king branching capture %d %d %d %d %d count %d\n", from, with, to, dir, next_enemy, count);
+	//printf("Add king branching capture %d %d %d %d %d count %d\n", from, with, to, dir, next_enemy, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -79,7 +79,7 @@ __device__ __forceinline__ void addKingFinalCapture(
 	uint8_t with,
 	uint8_t to
 ) {
-	printf("Add king final capture %d %d %d  count %d\n", from, with, to, count);
+	//printf("Add king final capture %d %d %d  count %d\n", from, with, to, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -104,7 +104,7 @@ __device__ __forceinline__ void addPawnCapture(
 	uint8_t with,
 	uint8_t to
 ) {
-	printf("Add pawn capture %d %d %d  count %d\n", from, with, to, count);
+	//printf("Add pawn capture %d %d %d  count %d\n", from, with, to, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -127,7 +127,7 @@ __device__ __forceinline__ void addNormalMove(
 	uint8_t from,
 	uint8_t to
 ) {
-	printf("Add new normal move %d %d  count %d\n", from, to, count);
+	//printf("Add new normal move %d %d  count %d\n", from, to, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -196,7 +196,7 @@ __device__ __forceinline__ int8_t countEmptySquares(
 }
 
 // dodaje pola lądowania dla bicia damką przed rozgalezieniem albo finalne
-__device__ __forceinline__ void addKingLandingSquare(
+__device__  void addKingLandingSquare(
 	uint32_t occ_total,
 	uint32_t occ_enemy,
 	uint8_t capture_from,
@@ -209,13 +209,13 @@ __device__ __forceinline__ void addKingLandingSquare(
 	bool found_square = false;
 	int8_t it = NEIGHBOURS[enemy_idx][dir];
 
-	printf("[top landin] from %d, with %d, it %d, dir %d\n", capture_from, enemy_idx, it, dir);
+	//printf("[top landin] from %d, with %d, it %d, dir %d\n", capture_from, enemy_idx, it, dir);
 	while (it != -1) {
-		printf("it in while: %d\n", it);
+		//printf("it in while: %d\n", it);
 		// zajete pole na glownej linii z mozliwoscia bicia
 		if (occ_enemy & (1 << it)) {
 			if (NEIGHBOURS[it][dir] != -1 && !(occ_total & (1 << NEIGHBOURS[it][dir]))) {
-				printf("Captuere in main line dir %d\n", dir);
+				//printf("Captuere in main line dir %d\n", dir);
 
 				addKingBranchingCapture(move_packed, seed, count, capture_from, enemy_idx, NEIGHBOURS[it][(dir + 2) % 4], dir, it);
 				found_square = true;
@@ -229,18 +229,18 @@ __device__ __forceinline__ void addKingLandingSquare(
 
 		// mozliwosc rozgalezienia bicia
 		int8_t next_enemy_idx = countEmptySquares(occ_total, occ_enemy, it, (dir + 1) % 4);
-		printf("Count %d dir %d\n", next_enemy_idx, (dir + 1) % 4);
+		//printf("Count %d dir %d\n", next_enemy_idx, (dir + 1) % 4);
 		if (next_enemy_idx < 0) {
-			printf("Captuere dir %d\n", (dir + 1) % 4);
+			//printf("Captuere dir %d\n", (dir + 1) % 4);
 
 			addKingBranchingCapture(move_packed, seed, count, capture_from, enemy_idx, it, (dir + 1) % 4, -next_enemy_idx);
 			found_square = true;
 		}
 
 		next_enemy_idx = countEmptySquares(occ_total, occ_enemy, it, (dir + 3) % 4);
-		printf("Count %d dir %d\n", next_enemy_idx, (dir + 3) % 4);
+		//printf("Count %d dir %d\n", next_enemy_idx, (dir + 3) % 4);
 		if (next_enemy_idx < 0) {
-			printf("Captuere dir %d\n", (dir + 3) % 4);
+			//printf("Captuere dir %d\n", (dir + 3) % 4);
 			addKingBranchingCapture(move_packed, seed, count, capture_from, enemy_idx, it, (dir + 3) % 4, -next_enemy_idx);
 			found_square = true;
 		}
@@ -249,9 +249,9 @@ __device__ __forceinline__ void addKingLandingSquare(
 		it = NEIGHBOURS[it][dir];
 	}
 
-	printf("\nfrom %d, with %d after_enemy %d dir %d found square %d\n", capture_from, enemy_idx, NEIGHBOURS[enemy_idx][dir], dir, found_square);
+	//printf("\nfrom %d, with %d after_enemy %d dir %d found square %d\n", capture_from, enemy_idx, NEIGHBOURS[enemy_idx][dir], dir, found_square);
 	if (!found_square) {
-		printf("Normal landing squares\n");
+		//printf("Normal landing squares\n");
 		it = NEIGHBOURS[enemy_idx][dir];
 		while (it != -1 && !(occ_total & (1 << it))) {
 			addKingFinalCapture(move_packed, seed, count, capture_from, enemy_idx, it);
@@ -263,7 +263,7 @@ __device__ __forceinline__ void addKingLandingSquare(
 
 
 // obsluga ruchow damka
-__device__ __forceinline__ void chooseKingMove(
+__device__  void chooseKingMove(
 	uint32_t& move_packed,
 	uint32_t& rng_reg,
 	uint8_t& count,
@@ -280,7 +280,7 @@ __device__ __forceinline__ void chooseKingMove(
 	// sprawdz czy w jakims kierunku jest bicie
 	for (i = 0; i < 4; i++) {
 		ret[i] = countEmptySquares(occ_total, occ_enemy, index, i);
-		printf("ret: %d\n", ret[i]);
+		//printf("ret: %d\n", ret[i]);
 		if (ret[i] < 0) {
 			found_capture = true;
 		}
@@ -294,13 +294,13 @@ __device__ __forceinline__ void chooseKingMove(
 	}
 
 	// nie znaleziono bicia a bylo juz bicie wczesniej
-	printf("Was cature: %d\n", was_capture);
+	//printf("Was cature: %d\n", was_capture);
 	if (was_capture && !found_capture) {
 		return;
 	}
 
 	if (found_capture) {
-		printf("found capture: %d\n", found_capture);
+		//printf("found capture: %d\n", found_capture);
 		// dodanie bicia i pol na ktorych moze wyladowac pionek przed rozgalezieniem
 		for (i = 0; i < 4; i++) {
 			if (ret[i] < 0) {
@@ -359,7 +359,7 @@ __device__  uint32_t chooseMove(
 		uint8_t i = __ffs(figures) - 1;
 		figures &= ~(1u << i);
 
-		printf("Checking king moves for index %d\n", i);
+		//printf("Checking king moves for index %d\n", i);
 
 		chooseKingMove(
 			move_packed,
@@ -450,7 +450,7 @@ __device__  uint32_t chooseMove(
 	}
 
 
-	printf("Board counter: %d\n", counter);
+	//printf("Board counter: %d\n", counter);
 	return move_packed;
 }
 
@@ -458,13 +458,13 @@ __device__  uint32_t chooseMove(
 
 
 
-__device__ __forceinline__ void performNormalMove(
+__device__  void performNormalMove(
 	uint32_t& player_pawns,
 	uint32_t& player_kings,
 	int8_t from,
 	int8_t to
 ) {
-	printf("Normal move\n");
+	//printf("Normal move\n");
 	if (player_pawns & (1 << from)) {
 		player_pawns ^= (1 << from);
 		if (to % 4 == 3 && ((to / 4) % 2) == 0 ||
@@ -484,8 +484,8 @@ __device__ __forceinline__ void performNormalMove(
 }
 
 
-__device__ __forceinline__ void performPawnCapture(
-	uint32_t seed,
+__device__  void performPawnCapture(
+	uint32_t& seed,
 	uint32_t& player_pawns,
 	uint32_t& player_kings,
 	uint32_t& opponent_pawns,
@@ -495,13 +495,13 @@ __device__ __forceinline__ void performPawnCapture(
 	int8_t to,
 	bool is_white_move
 ) {
-	printf("Capture %d %d %d\n", from, with, to);
+	//printf("Capture %d %d %d\n", from, with, to);
 
 	player_pawns ^= 1 << from;
 	uint8_t final_to;
 	from = to;
 	while (1) {
-		printf("while\n");
+		//printf("while\n");
 		uint32_t next_move = 0;
 		uint8_t count = 0;
 		from = to;
@@ -509,7 +509,7 @@ __device__ __forceinline__ void performPawnCapture(
 
 		opponent_pawns &= ~(1 << with);
 		opponent_kings &= ~(1 << with);
-		printf("After\n");
+		//printf("After\n");
 
 
 		for (char j = 0; j < 4; j++) {
@@ -548,14 +548,16 @@ __device__ __forceinline__ void performPawnCapture(
 			placeholder,
 			placeholder
 		);
-		printf("Unpacked next move: %d %d %d type %d dir %d next %d\n",
+		/*
+		printf("Unpacked next move: %d %d %d\n",
 			(uint8_t&)from,
 			(uint8_t&)with,
-			(uint8_t&)to);
+			(uint8_t&)to);*/
+
 
 	}
 
-	printf("Final to %d\n", final_to);
+	//printf("Final to %d\n", final_to);
 	if ((is_white_move && final_to % 4 == 3 && ((final_to / 4) % 2) == 0) ||
 		(!is_white_move && final_to % 4 == 0 && ((final_to / 4) % 2) == 1)) {
 		player_kings |= 1 << final_to;
@@ -565,8 +567,8 @@ __device__ __forceinline__ void performPawnCapture(
 }
 
 
-__device__ __forceinline__ void perfromKingCapture(
-	uint32_t seed,
+__device__  void perfromKingCapture(
+	uint32_t& seed,
 	uint32_t& player_pawns,
 	uint32_t& player_kings,
 	uint32_t& opponent_pawns,
@@ -577,23 +579,23 @@ __device__ __forceinline__ void perfromKingCapture(
 	uint8_t type,
 	uint8_t dir,
 	int8_t next) {
-	printf("King capture %d %d %d dir %d next %d\n", from, with, to, dir, next);
-	printf("type %d\n", type);
+	/*printf("King capture %d %d %d dir %d next %d\n", from, with, to, dir, next);
+	printf("type %d\n", type);*/
 
 	player_kings &= ~(1 << from);
 	while (1) {
-		printf("King capture loop\n");
+		//printf("King capture loop\n");
 		opponent_kings &= ~(1 << with);
 		opponent_pawns &= ~(1 << with);
 		if (type == MOVE_TYPE_KING_FINAL_CAPTURE) {
-			printf("King final capture\n");
+			//printf("King final capture\n");
 
 			player_kings |= (1 << to);
 
 			break;
 		}
 		if (type == MOVE_TYPE_KING_BRANCHING_CAPTURE) {
-			printf("King branching capture\n");
+			//printf("King branching capture\n");
 			uint32_t next_move = 0;
 			uint8_t count = 0;
 
@@ -616,7 +618,7 @@ __device__ __forceinline__ void perfromKingCapture(
 				(uint8_t&)dir,
 				(uint8_t&)next
 			);
-			printf("Next move packed: %u\n %d %d %d dir %d type %d next %d\n", next_move, from, with, to, dir, type, next);
+			//printf("Next move packed: %u\n %d %d %d dir %d type %d next %d\n", next_move, from, with, to, dir, type, next);
 		}
 	}
 
@@ -643,8 +645,8 @@ __device__ void performMove(
 		dir,
 		next
 	);
-	printf("\n\n\n\n Performing move \n\n\n");
-	printf("Move packed: %u\n %d %d %d dir %d next %d \n  type %d\n", move_packed, from, with, to, dir, next, type);
+	//printf("\n\n\n\n Performing move \n\n\n");
+	//printf("Move packed: %u\n %d %d %d dir %d next %d \n  type %d\n", move_packed, from, with, to, dir, next, type);
 
 	switch (type) {
 	case MOVE_TYPE_NORMAL:
@@ -676,7 +678,7 @@ __device__ bool simulate(
 	uint32_t white_kings,
 	uint32_t black_pawns,
 	uint32_t black_kings,
-	uint32_t seed
+	uint32_t& seed
 )
 {
 	
@@ -707,13 +709,13 @@ __device__ bool simulate(
 
 		switch (is_white_move) {
 		case true:
-			printf("Choosing white move\n");
+			//printf("Choosing white move\n");
 			move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occ_total, true, seed);
 			performMove(white_pawns, white_kings, black_pawns, black_kings, move_packed, true, seed);
 
 			break;
 		case false:
-			printf("Choosing black move\n");
+			//printf("Choosing black move\n");
 			move_packed = chooseMove(black_pawns, black_kings, white_kings | white_pawns, occ_total, false, seed);
 			performMove(black_pawns, black_kings, white_pawns, white_kings, move_packed, false, seed);
 
@@ -724,11 +726,11 @@ __device__ bool simulate(
 
 
 
-		printBoard(
+		/*printBoard(
 			black_pawns,
 			white_pawns,
 			black_kings,
-			white_kings);
+			white_kings);*/
 
 
 		// brak progresu
@@ -741,7 +743,7 @@ __device__ bool simulate(
 			) {
 			no_progres_counter++;
 			if(no_progres_counter > NO_PROGRES_LIMIT) {
-				printf("BRAK PROGRESSU BREAKING\n");
+				//printf("BRAK PROGRESSU BREAKING\n");
 				is_white_winner = !is_white_move;
 				break;
 			}
@@ -752,16 +754,16 @@ __device__ bool simulate(
 
 		// uzyskanie pzewagi po pewnej liczbie ruchow
 		if (total_moves > MIN_MOVES) {
-			printf("white strength %d black strength %d\n", white_strength, black_strength);
+			//printf("white strength %d black strength %d\n", white_strength, black_strength);
 			if(white_strength >= black_strength * 3) {
 				is_white_winner = true;
-				printf("PRZEWAGA BIALY BREAKING\n");
+				//printf("PRZEWAGA BIALY BREAKING\n");
 				break;
 			}
 
 			if (black_strength >= white_strength * 3) {
 				is_white_winner = false;
-				printf("PRZEWAGA CZARNY BREAKING\n");
+				//printf("PRZEWAGA CZARNY BREAKING\n");
 				break;
 			}
 		}
@@ -770,7 +772,7 @@ __device__ bool simulate(
 		// brak mozliwych ruchow
 		if (move_packed == 0) {
 			is_white_winner = !is_white_move;
-			printf("DIDINT FOUND MOVE BREAKING\n");
+			//printf("DIDINT FOUND MOVE BREAKING\n");
 			break;
 		}
 
@@ -781,24 +783,36 @@ __device__ bool simulate(
 
 }
 
+
+__device__ __forceinline__ uint32_t makeSeed(uint32_t base, uint32_t tid) {
+	uint32_t x = base ^ (tid * 0x9E3779B9u);  
+	x ^= x >> 16;
+	x *= 0x85EBCA6Bu;
+	x ^= x >> 13;
+	x *= 0xC2B2AE35u;
+	x ^= x >> 16;
+	return x | 1u;
+}
+
 __global__ void MCTSKernel(Board* b, char* ret) {
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
+	uint32_t seed = makeSeed(1234567, tid);
 
 	bool is_white_winner = simulate(
 		b->white_pawns,
 		b->white_kings,
 		b->black_pawns,
 		b->black_kings,
-		12345678u + (uint32_t)tid
+		seed
 	);
 
-	if (is_white_winner) {
-		printf("White winner\n");
+	/*if (is_white_winner) {
+		printf("White winner id: %d\n", tid);
 	}
 	else {
-		printf("Black winner\n");
-	}
+		printf("Black winner id %d\n", tid);
+	}*/
 	// to be implemented
 }
 
@@ -867,81 +881,111 @@ void buildRayTab() {
 
 
 cudaError_t calcAllMovesCuda(Board board_in) {
+	cudaError_t cudaStatus = cudaSuccess;
 
+	Board* d_in = nullptr;
+	char* d_ret = nullptr;
 
-	cudaError_t cudaStatus;
+	cudaEvent_t startEv = nullptr, stopEv = nullptr;
+	float ms = 0.0f;
+
+	// <-- PRZENIESIONE TU, żeby goto nie omijało inicjalizacji
+	float avg_ms = 0.0f;
+	double threads_total = 0.0;
+	double threads_per_sec = 0.0;
+
+	const int grid = 100000;
+	const int block = 128;
+
+	const int warmupIters = 3;
+	const int measureIters = 5;
+
 	cudaStatus = cudaSetDevice(0);
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		fprintf(stderr, "cudaSetDevice failed!\n");
 		goto Error;
 	}
 
 	buildNeighbourTabs();
 	cudaStatus = cudaMemcpyToSymbol(NEIGHBOURS, Neighbours, sizeof(Neighbours));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpyToSymbol failed!");
-		goto Error;
-	}
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "Memcpy NEIGHBOURS failed!\n"); goto Error; }
 
 	cudaStatus = cudaMemcpyToSymbol(CAPTURES, Captures, sizeof(Captures));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpyToSymbol failed!");
-		goto Error;
-	}
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "Memcpy CAPTURES failed!\n"); goto Error; }
 
 	buildRayTab();
 	cudaStatus = cudaMemcpyToSymbol(RAYS, Rays, sizeof(Rays));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpyToSymbol failed!");
-		goto Error;
-	}
-
-
-	Board* d_in = nullptr;
-	char d_ret[32];
-
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "Memcpy RAYS failed!\n"); goto Error; }
 
 	cudaStatus = cudaMalloc((void**)&d_in, sizeof(Board));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc d_in failed!\n"); goto Error; }
 
 	cudaStatus = cudaMalloc((void**)&d_ret, 32 * sizeof(char));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc d_ret failed!\n"); goto Error; }
 
 	cudaStatus = cudaMemcpy(d_in, &board_in, sizeof(Board), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMemcpy d_in failed!\n"); goto Error; }
+
+	cudaStatus = cudaEventCreate(&startEv);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventCreate(start) failed!\n"); goto Error; }
+
+	cudaStatus = cudaEventCreate(&stopEv);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventCreate(stop) failed!\n"); goto Error; }
+
+	// warmup
+	for (int i = 0; i < warmupIters; ++i) {
+		MCTSKernel << <grid, block >> > (d_in, d_ret);
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "MCTSKernel warmup launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto Error;
+		}
+	}
+	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
+		fprintf(stderr, "cudaDeviceSynchronize after warmup failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto Error;
 	}
 
-	MCTSKernel << <1, 1 >> > (d_in, d_ret);
+	// measured batch
+	cudaStatus = cudaEventRecord(startEv, 0);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventRecord(start) failed!\n"); goto Error; }
+
+	for (int i = 0; i < measureIters; ++i) {
+		MCTSKernel << <grid, block >> > (d_in, d_ret);
+	}
+
+	cudaStatus = cudaEventRecord(stopEv, 0);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventRecord(stop) failed!\n"); goto Error; }
+
+	cudaStatus = cudaEventSynchronize(stopEv);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventSynchronize(stop) failed!\n"); goto Error; }
+
+	cudaStatus = cudaEventElapsedTime(&ms, startEv, stopEv);
+	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventElapsedTime failed!\n"); goto Error; }
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "checkersKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "MCTSKernel measured launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto Error;
 	}
 
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching checkersKernel!\n", cudaStatus);
-		goto Error;
-	}
+	avg_ms = ms / (float)measureIters;
+	threads_total = (double)grid * (double)block;
+	threads_per_sec = threads_total / (avg_ms * 1e-3);
 
-
-
-	return cudaSuccess;
+	printf("MCTSKernel<<<%d,%d>>> total: %.3f ms for %d launches, avg: %.6f ms/launch\n",
+		grid, block, ms, measureIters, avg_ms);
+	printf("Throughput: %.3f M threads/s\n", threads_per_sec / 1e6);
 
 Error:
+	if (stopEv)  cudaEventDestroy(stopEv);
+	if (startEv) cudaEventDestroy(startEv);
+	if (d_ret)   cudaFree(d_ret);
+	if (d_in)    cudaFree(d_in);
 
 	return cudaStatus;
 }
-
 
 
 int main()

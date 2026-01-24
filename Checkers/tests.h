@@ -87,7 +87,7 @@ __host__ __device__ void print_int(uint32_t n) {
     }
 
     writeBoardToBuff(buffer, n, '*');
-    printf("%s\n", buffer);
+    printf("%s\n\n\n", buffer);
 }
 
 __host__ __device__ void print_bin(uint32_t n) {
