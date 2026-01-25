@@ -4,6 +4,8 @@
 #include "player.h"
 #include "moves_getter.h" 
 #include "GPU.h"
+#include <chrono>
+#include <iostream>
 
 
 class MCTSPlayer : public Player {
@@ -15,10 +17,10 @@ public:
     MCTSPlayer(Color c, int time_limit_sec) : Player(c), time_limit_sec(time_limit_sec), gpu(GPU::getInstance(Neighbours, Captures, Rays)){
     }
 
-    int simulate(Board board) {
-		gpu.simulate(board, color);
+    int simulate(Board board, Color next_color) {
+		uint32_t ret = gpu.simulate(board, next_color);
         // Placeholder for simulation logic
-        return 0;
+        return ret;
 	}
 
     char* MakeMove(Board& board) override {
@@ -31,7 +33,14 @@ public:
             }
 
             printf("]\n");
-			int wins = simulate(pm.resulting_board);
+
+            auto t0 = std::chrono::high_resolution_clock::now();
+
+            int wins = simulate(pm.resulting_board, Color::BLACK);
+
+            auto t1 = std::chrono::high_resolution_clock::now();
+            auto us = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+            std::cout << "simulate() took " << us << " ms\n";
 			printf("wins: %d\n", wins);
 		}
 

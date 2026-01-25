@@ -58,16 +58,26 @@ private:
 		pm.move = move;
 
 		Board res_board = active_board;
-
+		int final_to = move.back();
 		switch (side_to_move)
 		{
 		case Color::WHITE:
 			res_board.white_pawns &= ~(1 << move[0]);
-			res_board.white_pawns |= (1 << move.back());
+
+			if ( (final_to % 4) == 3 && ((final_to / 4) % 2) == 0) {
+				res_board.white_kings |= 1 << final_to;
+			}
+			else {
+				res_board.white_pawns |= (1 << move.back());
+			}
 			break;
 		case Color::BLACK:
-			res_board.black_pawns &= ~(1 << move[0]);
-			res_board.black_pawns |= (1 << move.back());
+			if ((final_to % 4) == 0 && ((final_to / 4) % 2) == 1) {
+				res_board.black_kings |= 1 << final_to;
+			}
+			else {
+				res_board.black_pawns |= (1 << move.back());
+			}
 			break;
 		}
 
@@ -86,15 +96,26 @@ private:
 		res_board.black_pawns = active_board.black_pawns & occ_total;
 		res_board.black_kings = active_board.black_kings & occ_total;
 
+		int final_to = move.back();
 		switch (side_to_move)
 		{
 		case Color::WHITE:
 			res_board.white_pawns &= ~(1 << move[0]);
-			res_board.white_pawns |= (1 << move.back());
+
+			if ((final_to % 4) == 3 && ((final_to / 4) % 2) == 0) {
+				res_board.white_kings |= 1 << final_to;
+			}
+			else {
+				res_board.white_pawns |= (1 << move.back());
+			}
 			break;
 		case Color::BLACK:
-			res_board.black_pawns &= ~(1 << move[0]);
-			res_board.black_pawns |= (1 << move.back());
+			if ((final_to % 4) == 0 && ((final_to / 4) % 2) == 1) {
+				res_board.black_kings |= 1 << final_to;
+			}
+			else {
+				res_board.black_pawns |= (1 << move.back());
+			}
 			break;
 		}
 

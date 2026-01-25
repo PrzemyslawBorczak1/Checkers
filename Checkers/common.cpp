@@ -52,6 +52,8 @@ __host__ __device__ void printBoard(uint32_t black_pawns, uint32_t white_pawns, 
     printf("   a b c d e f g h\n\n");
 }
 
+
+
 __host__ __device__ void printBoard(Board board) {
     printBoard(board.black_pawns, board.white_pawns, board.black_kings, board.white_kings);
 }

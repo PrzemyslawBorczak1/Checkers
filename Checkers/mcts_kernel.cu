@@ -543,9 +543,9 @@ __device__  void performPawnCapture(
 
 	}
 
-	//printf("Final to %d\n", final_to);
-	if ((is_white_move && final_to % 4 == 3 && ((final_to / 4) % 2) == 0) ||
-		(!is_white_move && final_to % 4 == 0 && ((final_to / 4) % 2) == 1)) {
+
+	if ((is_white_move && (final_to % 4) == 3 && ((final_to / 4) % 2) == 0) ||
+		(!is_white_move && (final_to % 4) == 0 && ((final_to / 4) % 2) == 1)) {
 		player_kings |= 1 << final_to;
 	}
 	else
@@ -655,6 +655,57 @@ __device__ void performMove(
 
 
 
+// todo usuanc ten print  (nastepne fucnkcje)
+__device__ void writeBoardToBuffcd(char buffer[72], uint32_t board, char c) {
+	int x = 0;
+	int y = 1;
+	int pos = 0;
+	for (int i = 0; i < 32; i++) {
+		if (board & (1u << (31 - i))) {
+			pos = y * 9 + x;
+			buffer[pos] = c;
+		}
+		y += 2;
+		if (y >= 8) {
+			y = 1 - (y - 8);
+			x++;
+		}
+	}
+}
+
+__device__ void printBoardcd(uint32_t black_pawns, uint32_t white_pawns, uint32_t black_kings, uint32_t white_kings) {
+	char buffer[72];
+	memset(buffer, ' ', 72);
+
+	buffer[71] = '\0';
+
+	for (int i = 0; i < 7; i++) {
+		buffer[i * 9 + 8] = '\n';
+	}
+
+	writeBoardToBuffcd(buffer, black_pawns, 'b');
+	writeBoardToBuffcd(buffer, white_pawns, 'w');
+	writeBoardToBuffcd(buffer, black_kings, 'B');
+	writeBoardToBuffcd(buffer, white_kings, 'V');
+
+	printf("\n");
+	printf("   a b c d e f g h\n");
+	printf("  ----------------\n");
+
+	for (int row = 0; row < 8; row++) {
+		printf("%d| ", 8 - row);
+		for (int col = 0; col < 8; col++) {
+			int pos = row * 9 + col;
+			printf("%c ", buffer[pos]);
+		}
+		printf("\n");
+	}
+
+	printf("  ----------------\n");
+	printf("   a b c d e f g h\n\n");
+}
+
+
 // simulates a single game
 // return true if white wins
 __device__ bool simulate(
@@ -662,12 +713,12 @@ __device__ bool simulate(
 	uint32_t white_kings,
 	uint32_t black_pawns,
 	uint32_t black_kings,
-	uint32_t& seed
+	uint32_t& seed,
+	bool is_white_move
 )
 {
 	
 	uint32_t move_packed;
-	bool is_white_move = true;
 	bool is_white_winner = false;
 
 
@@ -710,7 +761,7 @@ __device__ bool simulate(
 
 
 
-		/*printBoard(
+		/*printBoardcd(
 			black_pawns,
 			white_pawns,
 			black_kings,
@@ -778,30 +829,79 @@ __device__ __forceinline__ uint32_t makeSeed(uint32_t base, uint32_t tid) {
 	return x | 1u;
 }
 
-__global__ void mctsKernel(Board* b, uint16_t* ret) {
+
+__device__ void reduce(int16_t* to_sum, uint16_t size, uint32_t* save) {
+	for (uint16_t stride = (size + 1) >> 1; stride > 0; stride = (stride + 1) >> 1) {
+		uint16_t i = (uint16_t)threadIdx.x;
+
+		if (i < stride) {
+			uint16_t j = i + stride;
+			if (j < size) {
+				uint16_t a = to_sum[i];
+				uint16_t b = to_sum[j];
+				uint16_t s = a + b;
+
+				to_sum[i] = s;
+			}
+		}
+		__syncthreads();
+
+		size = stride;
+		if (size == 1) break;
+	}
+
+	if (threadIdx.x == 0) {
+		save[blockIdx.x] = to_sum[0];
+	}
+}
+
+__global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move) {
+	__shared__ int16_t winner[THREADS];
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
-	uint32_t seed = makeSeed(1234567, tid);
+	uint32_t seed = makeSeed(127, tid);
 
 	bool is_white_winner = simulate(
 		b->white_pawns,
 		b->white_kings,
 		b->black_pawns,
 		b->black_kings,
-		seed
+		seed,
+		is_white_move
 	);
 	
 	if (is_white_winner) {
-		printf("White winner id: %d\n", tid);
+		//printf("white winner thread %d\n", tid);
+		winner[threadIdx.x] = 1;
 	}
 	else {
-		printf("Black winner id %d\n", tid);
+		winner[threadIdx.x] = 0;
 	}
-	ret[0] = 10;
-	// to be implemented
+	__syncthreads();
+	reduce(winner, THREADS, ret);
+	//printf("Result block %d: %d\n", blockIdx.x, ret[blockIdx.x]);
 }
 
+__global__ void reduceKernel(uint32_t* to_sum, uint16_t size) {
+	for (uint32_t stride = (size + 1) >> 1; stride > 0; stride = (stride + 1) >> 1) {
+		uint32_t i = (uint32_t)threadIdx.x;
 
+		if (i < stride) {
+			uint32_t j = i + stride;
+			if (j < size) {
+				uint32_t a = to_sum[i];
+				uint32_t b = to_sum[j];
+				uint32_t s = a + b;
+
+				to_sum[i] = s;
+			}
+		}
+		__syncthreads();
+
+		size = stride;
+		if (size == 1) break;
+	}
+}
 
 cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint32_t(&Rays)[32][4]) {
 	cudaError_t st;
@@ -820,165 +920,40 @@ cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4],
 }
 
 
-void runMCTS(Board* dev_board, uint16_t* dev_ret) {
-	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret);
+uint32_t runMCTS(Board* dev_board, Color color) {
 
-	cudaError_t cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize after warmup failed: %s\n", cudaGetErrorString(cudaStatus));
+	uint32_t* dev_ret = nullptr;
+	cudaError_t cs = cudaMalloc((void**)&dev_ret, BLOCKS * sizeof(uint32_t));
+	if (cs != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc dev_ret failed: %s\n", cudaGetErrorString(cs));
+	}
+	bool is_white_move = (color == Color::WHITE);
+	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret, is_white_move);
+
+	cs = cudaDeviceSynchronize();
+	if (cs != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize  failed: %s\n", cudaGetErrorString(cs));
 	}
 
-	printf("\n\nDev runned\n");
+	reduceKernel << <1, BLOCKS >> > (dev_ret, BLOCKS);
+
+	cs = cudaDeviceSynchronize();
+	if (cs != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize  failed: %s\n", cudaGetErrorString(cs));
+	}
+
+
+	uint32_t ret;
+	cs = cudaMemcpy(&ret, dev_ret, sizeof(uint32_t), cudaMemcpyDeviceToHost);
+	if (cs != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(cs));
+	}
+
+
+	printf("Dev runned\n");
+	printf("results: %f\n", (long double)ret / (BLOCKS * THREADS));
+	printf("results int: %d\n", ret);
+	return ret;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/*
-cudaError_t calcAllMovesCuda(Board board_in) {
-	cudaError_t cudaStatus = cudaSuccess;
-
-	Board* d_in = nullptr;
-	char* d_ret = nullptr;
-
-	cudaEvent_t startEv = nullptr, stopEv = nullptr;
-	float ms = 0.0f;
-
-	// <-- PRZENIESIONE TU, żeby goto nie omijało inicjalizacji
-	float avg_ms = 0.0f;
-	double threads_total = 0.0;
-	double threads_per_sec = 0.0;
-
-	const int grid = 100000;
-	const int block = 128;
-
-	const int warmupIters = 3;
-	const int measureIters = 5;
-
-	cudaStatus = cudaSetDevice(0);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!\n");
-		goto Error;
-	}
-
-	//cudaStatus = cudaMemcpyToSymbol(NEIGHBOURS, Neighbours, sizeof(Neighbours));
-	//if (cudaStatus != cudaSuccess) { fprintf(stderr, "Memcpy NEIGHBOURS failed!\n"); goto Error; }
-
-	//cudaStatus = cudaMemcpyToSymbol(CAPTURES, Captures, sizeof(Captures));
-	//if (cudaStatus != cudaSuccess) { fprintf(stderr, "Memcpy CAPTURES failed!\n"); goto Error; }
-
-	//cudaStatus = cudaMemcpyToSymbol(RAYS, Rays, sizeof(Rays));
-	//if (cudaStatus != cudaSuccess) { fprintf(stderr, "Memcpy RAYS failed!\n"); goto Error; }
-
-	cudaStatus = cudaMalloc((void**)&d_in, sizeof(Board));
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc d_in failed!\n"); goto Error; }
-
-	cudaStatus = cudaMalloc((void**)&d_ret, 32 * sizeof(char));
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMalloc d_ret failed!\n"); goto Error; }
-
-	cudaStatus = cudaMemcpy(d_in, &board_in, sizeof(Board), cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaMemcpy d_in failed!\n"); goto Error; }
-
-	cudaStatus = cudaEventCreate(&startEv);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventCreate(start) failed!\n"); goto Error; }
-
-	cudaStatus = cudaEventCreate(&stopEv);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventCreate(stop) failed!\n"); goto Error; }
-
-	// warmup
-	for (int i = 0; i < warmupIters; ++i) {
-		MCTSKernel << <grid, block >> > (d_in, d_ret);
-		cudaStatus = cudaGetLastError();
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "MCTSKernel warmup launch failed: %s\n", cudaGetErrorString(cudaStatus));
-			goto Error;
-		}
-	}
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize after warmup failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto Error;
-	}
-
-	// measured batch
-	cudaStatus = cudaEventRecord(startEv, 0);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventRecord(start) failed!\n"); goto Error; }
-
-	for (int i = 0; i < measureIters; ++i) {
-		MCTSKernel << <grid, block >> > (d_in, d_ret);
-	}
-
-	cudaStatus = cudaEventRecord(stopEv, 0);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventRecord(stop) failed!\n"); goto Error; }
-
-	cudaStatus = cudaEventSynchronize(stopEv);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventSynchronize(stop) failed!\n"); goto Error; }
-
-	cudaStatus = cudaEventElapsedTime(&ms, startEv, stopEv);
-	if (cudaStatus != cudaSuccess) { fprintf(stderr, "cudaEventElapsedTime failed!\n"); goto Error; }
-
-	cudaStatus = cudaGetLastError();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "MCTSKernel measured launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto Error;
-	}
-
-	avg_ms = ms / (float)measureIters;
-	threads_total = (double)grid * (double)block;
-	threads_per_sec = threads_total / (avg_ms * 1e-3);
-
-	printf("MCTSKernel<<<%d,%d>>> total: %.3f ms for %d launches, avg: %.6f ms/launch\n",
-		grid, block, ms, measureIters, avg_ms);
-	printf("Throughput: %.3f M threads/s\n", threads_per_sec / 1e6);
-
-Error:
-	if (stopEv)  cudaEventDestroy(stopEv);
-	if (startEv) cudaEventDestroy(startEv);
-	if (d_ret)   cudaFree(d_ret);
-	if (d_in)    cudaFree(d_in);
-
-	return cudaStatus;
-}
-// todo kopiowanie rays captures etc
-*/
-//int main()
-//{
-//
-//	Board board = startBoard();
-//	printBoard(board);
-//
-//	calcAllMovesCuda(board);
-//
-//	return 0;
-//}
 
 

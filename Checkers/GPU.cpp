@@ -24,11 +24,6 @@ void GPU::gpuPrelude(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint3
 		exitError("cudaMalloc dev_board failed!\n", cs);
 	}
 
-	cs = cudaMalloc((void**)&dev_ret, BLOCKS * sizeof(uint16_t));
-	if (cs != cudaSuccess) {
-		exitError("cudaMalloc dev_ret failed!\n", cs);
-	}
-
 }
 
 
@@ -49,11 +44,11 @@ int GPU::simulate(Board board, Color color) {
 	cudaError_t cs = cudaSuccess;
 	cs = cudaMemcpy(dev_board, &board, sizeof(Board), cudaMemcpyHostToDevice);
 	if (cs != cudaSuccess) {
-		exitError("cudaMemcpy d_in failed!\n", cs);
+		exitError("cudaMemcpy dev_board failed!\n", cs);
 	}
 	char* d_ret = nullptr;
 
-	runMCTS(dev_board, dev_ret);
-	return 0;
+	uint32_t ret = runMCTS(dev_board, color);
+	return ret;
 }
 
