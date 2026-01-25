@@ -92,7 +92,23 @@ private:
     }
 
     bool squareToIndex(char* sq, int& idx) {
-        idx = sq[0] + sq[1];
+        if (!sq) return false;
+
+        char file = sq[0];
+        char rank = sq[1];
+
+        if (file < 'a' || file > 'h') return false;
+        if (rank < '1' || rank > '8') return false;
+
+        int f = file - 'a';  
+        int r = rank - '1';  
+
+
+        if((f + r) % 2 == 1) {
+            return false;
+		}
+        idx = (r + (7 - f) * 8) / 2;
+
         return true;
     }
 
@@ -132,19 +148,110 @@ private:
         return steps.size() >= 2;
     }
 
+    int dirFromSteps(int s1, int s2) {
+
+        s1 = s1 * 2 + (1 - (s1 / 4) % 2);
+        s2 = s2 * 2 + (1 - (s2 / 4) % 2);
+
+        int x1 = s1 / 8, y1 = s1 % 8;
+        int x2 = s2 / 8, y2 = s2 % 8;
+
+        int dx = x2 - x1;
+        int dy = y2 - y1;
+
+        if (dx == 0 && dy == 0) return -1;
+
+        if (dx < 0 && dy > 0) return 0;
+        if (dx > 0 && dy > 0) return 1;
+        if (dx > 0 && dy < 0) return 2;
+        if (dx < 0 && dy < 0) return 3;
+
+        return -1;
+    }
+
+    bool isEmpty(int from, int to, int dir, uint32_t occ_total) {
+        int iter = Neighbours[from][dir];
+        while (iter != -1 && !(occ_total & (1 << iter)))
+        {
+
+            printf("iter %d\n", iter);
+            if (iter == to) {
+                return true;
+            }
+            iter = Neighbours[iter][dir];
+        }
+        printf("zajete pole %d\n", iter);
+        return false;
+
+    }
+
     bool perforomCaptureCheck(vector<int>& steps, Board board) {
         return false;
     }
-    bool performNormalMoveCheck(vector<int>& steps, Board board) {
-		return false;
-	}
+
+   
+    bool performNormalMoveCheck(vector<int>& steps, Board& board) {
+        printf("Normal move \n");
+        if (steps.size() != 2 || steps[0] == steps[1]) {
+            printf("Bad move %d %d\n", steps[0], steps[1]);
+            return false;
+        }
+
+        int dir = dirFromSteps(steps[0], steps[1]);
+        if (dir < 0) {
+            printf("Bad move no dir %d %d\n", steps[0], steps[1]);
+            return false;
+        }
+		printf("Direction %d\n", dir);
+        if(isEmpty(steps[0], steps[1], dir, 
+            board.white_pawns | board.white_kings | board.black_pawns | board.black_kings)) {
+            switch (color)
+            {
+            case Color::WHITE:
+                if (board.white_pawns & (1 << steps[0])) {
+
+                    printf("pionek step 0 %d \n", steps[0]);
+                    if (dir == 0 || dir == 1) {
+                        board.white_pawns &= ~(1 << steps[0]);
+                        board.white_pawns |= (1 << steps[1]);
+                        return true;
+                    }
+                    return false;
+                }
+                else if (board.white_kings & (1 << steps[0])) {
+                    board.white_kings &= ~(1 << steps[0]);
+                    board.white_kings |= (1 << steps[1]);
+                    return true;
+                }
+                return false;
+                break;
+            case Color::BLACK:
+                if (board.black_pawns & (1 << steps[0])) {
+                    if (dir == 2 || dir == 3) {
+                        board.black_pawns &= ~(1 << steps[0]);
+                        board.black_pawns |= (1 << steps[1]);
+                        return true;
+                    }
+                    return false;
+                }
+                else if (board.black_kings & (1 << steps[0])) {
+                    board.black_kings &= ~(1 << steps[0]);
+                    board.black_kings |= (1 << steps[1]);
+                    return true;
+                }
+                break;
+            }
+		}
+       
+    
+    }
 
 
 public:
     HumanPlayer(Color c) : Player(c) {}
 
     char* MakeMove(Board& board)  {
-        printf("\nHuman ruch\n\n");
+        printf("\nHuman ruch\n");
 
 		bool is_capture = isCaptureOnBoard(board);
         char delim;
@@ -178,17 +285,19 @@ public:
                 continue;
             }
 
-            printf("ruch:\n");
+            printf("ruch: %s\n", buf);
             for (int i = 0; i < (int)steps.size(); i++) {
                 printf("%d,\n", steps[i]);
             }
 
             if (is_capture) {
+                
                 if (perforomCaptureCheck(steps, board)) {
 					break;
                 }
             }
             else {
+
                 if (performNormalMoveCheck(steps, board)) {
                     break;
                 }

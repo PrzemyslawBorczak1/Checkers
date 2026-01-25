@@ -23,6 +23,9 @@
     <ClInclude Include="common.h">
       <Filter>common</Filter>
     </ClInclude>
+    <ClInclude Include="moves_getter.h">
+      <Filter>players</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="common">

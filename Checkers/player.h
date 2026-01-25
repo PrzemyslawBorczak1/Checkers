@@ -1,12 +1,21 @@
 #pragma once
 #include <stdio.h>
 #include <string.h>
+#include <vector>
+#include<iostream>
 #include "common.h"
+#include "moves_getter.h"
+
+using namespace std;
+
+
+
 
 
 
 class Player {
 private:
+
 	void buildNeighbourTabs() {
 		const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
 
@@ -66,20 +75,29 @@ private:
 		}
 	}
 
+	MovesGetter moves_getter{ Neighbours, Captures };
 protected:
-    Color color;
+	Color color;
 
 	int8_t Neighbours[32][4];
     int8_t Captures[32][4];
     uint32_t Rays[32][4];
 
+
 public:
     Player(Color c) : color(c) {
 		buildNeighbourTabs();
 		buildRayTab();
+
+		moves_getter = MovesGetter(Neighbours, Captures);
 	}
 
     virtual char* MakeMove(Board& board) = 0;
+
+	vector<PossibleMove> getAllMoves(const Board& board, Color side_to_move) {
+		return moves_getter.getAllMoves(board, side_to_move);
+	}
+
 };
 
 
