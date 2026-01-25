@@ -332,26 +332,26 @@ private:
 
 public:
 	// glowna funkcja - zwraca wszystkie mozliwe ruchy dla danej pozycji i koloru do ruchu
-	vector<PossibleMove> getAllMoves(const Board board, Color side_to_move) {
+	vector<PossibleMove> getAllMoves(const Board board, Color side_to_move_f) {
+
 		active_board = board;
-		printBoard(active_board);
 		moves.clear();
 		is_capture = false;
-		side_to_move = side_to_move;
+		side_to_move = side_to_move_f;
 
 		RecBoard rec_board;
 		switch (side_to_move) {
 		case Color::WHITE:
-			rec_board.player_pawns = board.white_pawns;
-			rec_board.player_kings = board.white_kings;
-			rec_board.enemy_pawns = board.black_pawns;
-			rec_board.enemy_kings = board.black_kings;
+			rec_board.player_pawns = active_board.white_pawns;
+			rec_board.player_kings = active_board.white_kings;
+			rec_board.enemy_pawns = active_board.black_pawns;
+			rec_board.enemy_kings = active_board.black_kings;
 			break;
 		case Color::BLACK:
-			rec_board.player_pawns = board.black_pawns;
-			rec_board.player_kings = board.black_kings;
-			rec_board.enemy_pawns = board.white_pawns;
-			rec_board.enemy_kings = board.white_kings;
+			rec_board.player_pawns = active_board.black_pawns;
+			rec_board.player_kings = active_board.black_kings;
+			rec_board.enemy_pawns = active_board.white_pawns;
+			rec_board.enemy_kings = active_board.white_kings;
 			break;
 		}
 
@@ -379,8 +379,6 @@ public:
 		}
 
 
-
-		show();
 		return moves;
 	}
 

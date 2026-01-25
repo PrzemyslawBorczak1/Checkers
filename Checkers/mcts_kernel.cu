@@ -1,12 +1,5 @@
 ﻿#pragma once
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-
-#include <stdio.h>
-#include <cstdint>
-#include <cstring>
-
-#include "common.h"
+#include "mcts_kernel.cuh"
 
 
 
@@ -14,14 +7,6 @@ __device__ __constant__  int8_t NEIGHBOURS[32][4];
 __device__ __constant__  int8_t CAPTURES[32][4];
 __device__ __constant__  uint32_t RAYS[32][4];
 
-
-
-
-// move_packed: next_enemy | dir | type | from | with | to
-# define MOVE_TYPE_NORMAL 0u
-# define MOVE_TYPE_PAWN_CAPTURE 1u
-# define MOVE_TYPE_KING_FINAL_CAPTURE 3u
-# define MOVE_TYPE_KING_BRANCHING_CAPTURE 2u
 
 __device__ __forceinline__ void unpackMove(
 	uint32_t packed,
@@ -669,8 +654,6 @@ __device__ void performMove(
 
 
 
-#define NO_PROGRES_LIMIT 30 // po 15 ruchow z dwoch stron bez progresu gra jest przerywana (przegrywa ten ktory wykon aruch bez progresu)
-#define MIN_MOVES 200 // po 100 ruchach z kazdej strony mozliwe jest przerwanie gry przy znaczenej przewadze (3 razy wiecej materialu)
 
 // simulates a single game
 // return true if white wins
@@ -795,7 +778,7 @@ __device__ __forceinline__ uint32_t makeSeed(uint32_t base, uint32_t tid) {
 	return x | 1u;
 }
 
-__global__ void MCTSKernel(Board* b, char* ret) {
+__global__ void mctsKernel(Board* b, uint16_t* ret) {
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
 	uint32_t seed = makeSeed(1234567, tid);
@@ -807,19 +790,80 @@ __global__ void MCTSKernel(Board* b, char* ret) {
 		b->black_kings,
 		seed
 	);
-
-	/*if (is_white_winner) {
+	
+	if (is_white_winner) {
 		printf("White winner id: %d\n", tid);
 	}
 	else {
 		printf("Black winner id %d\n", tid);
-	}*/
+	}
+	ret[0] = 10;
 	// to be implemented
 }
 
 
 
+cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint32_t(&Rays)[32][4]) {
+	cudaError_t st;
 
+	st = cudaSetDevice(0);
+	if (st != cudaSuccess) return st;
+
+	st = cudaMemcpyToSymbol(NEIGHBOURS, Neighbours, sizeof(Neighbours));
+	if (st != cudaSuccess) return st;
+	st = cudaMemcpyToSymbol(CAPTURES, Captures, sizeof(Captures));
+	if (st != cudaSuccess) return st;
+
+	st = cudaMemcpyToSymbol(RAYS, Rays, sizeof(Rays));
+	if (st != cudaSuccess) return st;
+
+}
+
+
+void runMCTS(Board* dev_board, uint16_t* dev_ret) {
+	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret);
+
+	cudaError_t cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize after warmup failed: %s\n", cudaGetErrorString(cudaStatus));
+	}
+
+	printf("\n\nDev runned\n");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
 cudaError_t calcAllMovesCuda(Board board_in) {
 	cudaError_t cudaStatus = cudaSuccess;
 
@@ -925,7 +969,7 @@ Error:
 	return cudaStatus;
 }
 // todo kopiowanie rays captures etc
-
+*/
 //int main()
 //{
 //

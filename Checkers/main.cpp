@@ -114,14 +114,9 @@ void decide_players(const Options* opt, int* white_is_human, int* black_is_human
 #define NO_PROGRESS_LIMIT 30
 
 int main(int argc, char** argv) {
-    // TODO: usunac - testowe argv
-    auto pl = new HumanPlayer(Color::WHITE);
-    pl->getAllMoves(startBoard(), Color::WHITE);
-    return 0;
-
-
+  
     argc = 5;
-    const char* argv_const[] = { "checkers", "game.txt", "1", "0", "0" };
+    const char* argv_const[] = { "checkers", "game.txt", "1", "2", "0" };
     argv = (char**)argv_const;
 
     Options opt;

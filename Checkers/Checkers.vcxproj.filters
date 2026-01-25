@@ -1,16 +1,18 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <CudaCompile Include="kernel.cu" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="main.cpp" />
     <ClCompile Include="common.cpp">
       <Filter>common</Filter>
     </ClCompile>
+    <ClCompile Include="GPU.h">
+      <Filter>gpu</Filter>
+    </ClCompile>
+    <ClCompile Include="GPU.cpp">
+      <Filter>gpu</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="tests.h" />
     <ClInclude Include="player.h">
       <Filter>players</Filter>
     </ClInclude>
@@ -34,5 +36,16 @@
     <Filter Include="players">
       <UniqueIdentifier>{8d36ec97-36bb-4a8c-a6ed-77c96c013288}</UniqueIdentifier>
     </Filter>
+    <Filter Include="gpu">
+      <UniqueIdentifier>{efe48f2b-c2e6-4727-8314-ee8ec25286c0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="mcts_kernel.cu">
+      <Filter>gpu</Filter>
+    </CudaCompile>
+    <CudaCompile Include="mcts_kernel.cuh">
+      <Filter>gpu</Filter>
+    </CudaCompile>
   </ItemGroup>
 </Project>
