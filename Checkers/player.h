@@ -74,7 +74,7 @@ private:
 
 	MovesGetter moves_getter{ Neighbours, Captures };
 protected:
-	Color color;
+	Color player_color;
 
 	int8_t Neighbours[32][4];
     int8_t Captures[32][4];
@@ -82,7 +82,7 @@ protected:
 
 
 public:
-    Player(Color c) : color(c) {
+    Player(Color c) : player_color(c) {
 		buildNeighbourTabs();
 		buildRayTab();
 
@@ -95,6 +95,7 @@ public:
 		return moves_getter.getAllMoves(board, side_to_move);
 	}
 
+	
 };
 
 

@@ -48,7 +48,7 @@ private:
 		uint32_t player_pawns, player_kings, occ_opponenet;
 
 
-        if (color == Color::WHITE) {
+        if (player_color == Color::WHITE) {
             player_kings = board.white_kings;
 			player_pawns = board.white_pawns;
             occ_opponenet = board.black_pawns | board.black_kings;
@@ -205,7 +205,7 @@ private:
 		printf("Direction %d\n", dir);
         if(isEmpty(steps[0], steps[1], dir, 
             board.white_pawns | board.white_kings | board.black_pawns | board.black_kings)) {
-            switch (color)
+            switch (player_color)
             {
             case Color::WHITE:
                 if (board.white_pawns & (1 << steps[0])) {

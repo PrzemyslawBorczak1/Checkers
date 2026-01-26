@@ -72,6 +72,8 @@ private:
 			}
 			break;
 		case Color::BLACK:
+			res_board.black_pawns &= ~(1 << move[0]);
+
 			if ((final_to % 4) == 0 && ((final_to / 4) % 2) == 1) {
 				res_board.black_kings |= 1 << final_to;
 			}

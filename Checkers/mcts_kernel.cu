@@ -855,11 +855,11 @@ __device__ void reduce(int16_t* to_sum, uint16_t size, uint32_t* save) {
 	}
 }
 
-__global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move) {
+__global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t seed_cpu) {
 	__shared__ int16_t winner[THREADS];
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
-	uint32_t seed = makeSeed(127, tid);
+	uint32_t seed = makeSeed(seed_cpu,tid);
 
 	bool is_white_winner = simulate(
 		b->white_pawns,
@@ -920,7 +920,7 @@ cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4],
 }
 
 
-uint32_t runMCTS(Board* dev_board, Color color) {
+uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed) {
 
 	uint32_t* dev_ret = nullptr;
 	cudaError_t cs = cudaMalloc((void**)&dev_ret, BLOCKS * sizeof(uint32_t));
@@ -928,7 +928,7 @@ uint32_t runMCTS(Board* dev_board, Color color) {
 		fprintf(stderr, "cudaMalloc dev_ret failed: %s\n", cudaGetErrorString(cs));
 	}
 	bool is_white_move = (color == Color::WHITE);
-	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret, is_white_move);
+	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret, is_white_move, seed);
 
 	cs = cudaDeviceSynchronize();
 	if (cs != cudaSuccess) {
@@ -950,9 +950,9 @@ uint32_t runMCTS(Board* dev_board, Color color) {
 	}
 
 
-	printf("Dev runned\n");
-	printf("results: %f\n", (long double)ret / (BLOCKS * THREADS));
-	printf("results int: %d\n", ret);
+	//printf("Dev runned\n");
+	//printf("results: %f\n", (long double)ret / (BLOCKS * THREADS));
+	//printf("results int: %d\n", ret);
 	return ret;
 }
 

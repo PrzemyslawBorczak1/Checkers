@@ -135,7 +135,7 @@ int main(int argc, char** argv) {
     printf(" color=%d\n", (int)opt.color);
     printf(" white_is_human=%d black_is_human=%d\n", white_is_human, black_is_human);
 
-    Board board = kingLine4();
+    Board board = kingBlocking2();
 
     Player* white_player;
     if(white_is_human)

@@ -8,8 +8,8 @@
 
 #include "common.h"
 
-#define THREADS 512
-#define BLOCKS 1024
+#define THREADS 128
+#define BLOCKS 512
 
 
 // move_packed: next_enemy | dir | type | from | with | to
@@ -23,5 +23,5 @@
 #define MIN_MOVES 200 // po 100 ruchach z kazdej strony mozliwe jest przerwanie gry przy znaczenej przewadze (3 razy wiecej materialu)
 
 
-uint32_t runMCTS(Board* dev_board, Color color);
+uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed);
 cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint32_t(&Rays)[32][4]);

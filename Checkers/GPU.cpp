@@ -40,7 +40,7 @@ GPU& GPU::getInstance(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint
 	return *instance_;
 }
 
-int GPU::simulate(Board board, Color color) {
+int GPU::simulate(Board board, Color color, uint32_t seed) {
 	cudaError_t cs = cudaSuccess;
 	cs = cudaMemcpy(dev_board, &board, sizeof(Board), cudaMemcpyHostToDevice);
 	if (cs != cudaSuccess) {
@@ -48,7 +48,7 @@ int GPU::simulate(Board board, Color color) {
 	}
 	char* d_ret = nullptr;
 
-	uint32_t ret = runMCTS(dev_board, color);
+	uint32_t ret = runMCTS(dev_board, color, seed);
 	return ret;
 }
 
