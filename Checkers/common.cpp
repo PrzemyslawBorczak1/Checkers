@@ -1,6 +1,7 @@
 #pragma once
 #include "common.h"
 #include <stdio.h>
+#include <cstring>
 
 
 __host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char c) {

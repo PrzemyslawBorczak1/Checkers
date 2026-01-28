@@ -1,4 +1,3 @@
-#pragma once
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -159,13 +158,19 @@ void printGameSettings(Options opt, bool white_is_human, bool black_is_human) {
     printf("===========================\n\n");
 }
 
+static inline int popcount(uint32_t x)
+{
+    int c = 0;
+    while (x) {
+        x &= (x - 1);
+        ++c;
+    }
+    return c;
+}
 
 int main(int argc, char** argv) {
     
-    // todo usunac
-    argc = 5;
-    const char* argv_const[] = { "checkers", "game.txt", "1", "2", "0" };
-    argv = (char**)argv_const;
+    
 
     Options opt;
     bool white_is_human = false, black_is_human = false;
@@ -210,8 +215,8 @@ int main(int argc, char** argv) {
         printBoard(board);
 
         Board old_board = board;
-        int old_white_pawn_count = __popcnt(board.white_pawns);
-        int old_black_pawn_count = __popcnt(board.black_pawns);
+        int old_white_pawn_count = popcount(board.white_pawns);
+        int old_black_pawn_count = popcount(board.black_pawns);
 
         side_to_move == Color::WHITE ?
             white_player->MakeMove(board, move_str, no_progress_count) :
@@ -226,8 +231,8 @@ int main(int argc, char** argv) {
 
 
 		// sprawdzenie braku postepu (brak bicia i ruchow pionkow)
-        int white_pawn_count = __popcnt(board.white_pawns);
-        int black_pawn_count = __popcnt(board.black_pawns);
+        int white_pawn_count = popcount(board.white_pawns);
+        int black_pawn_count = popcount(board.black_pawns);
 
         if (old_board.white_pawns == board.white_pawns &&
             old_board.black_pawns == board.black_pawns &&
