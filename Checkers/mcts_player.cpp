@@ -29,30 +29,37 @@ void MCTSPlayer::printCollectedStats(const MCTSTreeNode* root, uint64_t counter)
 
     if (root->children.empty()) {
         printf("No following moves found.\n");
-        printf("=========================================================\n");
         return;
     }
 
-    printf("\n# | move           | visits          | wins\n");
-    printf("--+---------------+-----------------+-----------------\n");
+    printf("\n# | move           | visits          | wins            | winratio\n");
+    printf("--+---------------+-----------------+-----------------+--------\n");
 
     for (size_t i = 0; i < root->children.size(); ++i) {
         MCTSTreeNode* ch = root->children[i];
 
         if (!ch) {
-            printf("%2zu| %-13s | %-15s | %-15s\n",
-                i, "nullptr", "-", "-");
+            printf("%2zu| %-13s | %-15s | %-15s | %-7s\n",
+                i, "nullptr", "-", "-", "-");
             continue;
         }
 
         unsigned long long v = (unsigned long long)ch->visits;
         unsigned long long w = (unsigned long long)ch->wins;
 
+        double wr = 0.0;
+        if (v > 0.0) {
+            root->side_to_move == Color::WHITE ?
+                wr = (double)w / (double)v :
+				wr = 1.0 - ((double)w / (double)v);
+        }
+
+
         char move[40];
         moveToChar(ch->possible_move.move, ch->possible_move.is_capture, move);
 
-        printf("%2zu| %-13s | %15llu | %15llu\n",
-            i, move, v, w);
+        printf("%2zu| %-13s | %15llu | %15llu | %7.4f\n",
+            i, move, v, w, wr);
     }
 
 
@@ -187,7 +194,6 @@ void freeTree(MCTSTreeNode* n) {
 }
 
 void MCTSPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) {
-    printf("MCTS Player making move:\n");
     PossibleMove root_pm = { {}, board };
     root = new MCTSTreeNode(root_pm, player_color);
     uint64_t base_seed =
@@ -206,7 +212,6 @@ void MCTSPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) {
         counter++;
     }
 
-    printf("\n================= SUMMARY =================\n");
     printCollectedStats(root, counter);
     MCTSTreeNode* best_move_node = findBest(root);
     if (!best_move_node) {
@@ -218,7 +223,6 @@ void MCTSPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) {
     printf("Best move selected: %s\n", ret);
 
 
-    printf("=========================================================\n\n");
     board = best_move_node->possible_move.resulting_board;
 
 	freeTree(root);

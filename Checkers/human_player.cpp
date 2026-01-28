@@ -38,7 +38,6 @@ bool HumanPlayer::parseMove(char* move_str, vector<int>& steps, char delim) {
     return steps.size() >= 2;
 }
 
-
 vector<int> HumanPlayer::normalizeMove(vector<int>& steps)
 {
     const int n = (int)steps.size();
@@ -96,9 +95,6 @@ void HumanPlayer::printMoveVector(vector<PossibleMove> pm) {
     printf("\n");
 }
 
-
-
-
 void HumanPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) {
     ret[0] = '\0';
     char buf[100];
@@ -113,7 +109,6 @@ void HumanPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) 
     bool is_capture = false;
     if (possible_moves[0].is_capture) {
         is_capture = true;
-        printf("Masz bicie!\n");
     }
 
     char delim = is_capture ? ':' : '-';
@@ -121,11 +116,11 @@ void HumanPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) 
     vector<int> steps;
 
 
+    printf("Mozliwe ruchy:\n");
+    printMoveVector(possible_moves);
 
     while (true)
     {
-        printf("Mozliwe ruchy:\n");
-        printMoveVector(possible_moves);
         printf("Podaj ruch: ");
         fflush(stdout);
 
@@ -156,5 +151,3 @@ void HumanPlayer::MakeMove(Board& board, char* ret, int moves_without_progress) 
 
     }
 }
-
-

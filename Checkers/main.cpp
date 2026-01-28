@@ -164,7 +164,7 @@ int main(int argc, char** argv) {
     
     // todo usunac
     argc = 5;
-    const char* argv_const[] = { "checkers", "game.txt", "1", "0", "0" };
+    const char* argv_const[] = { "checkers", "game.txt", "1", "2", "0" };
     argv = (char**)argv_const;
 
     Options opt;
@@ -177,7 +177,7 @@ int main(int argc, char** argv) {
     decidePlayer(&opt, &white_is_human, &black_is_human);
 	printGameSettings(opt, white_is_human, black_is_human);
 
-    Board board = kingArena();
+    Board board = startBoard();
 
     Player* white_player = white_is_human ?
         (Player*)new HumanPlayer(Color::WHITE) :

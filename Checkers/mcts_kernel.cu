@@ -38,7 +38,6 @@ __device__ __forceinline__ void addKingBranchingCapture(
 	uint8_t dir,
 	uint8_t next_enemy
 ) {
-	//printf("Add king branching capture %d %d %d %d %d count %d\n", from, with, to, dir, next_enemy, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -65,7 +64,6 @@ __device__ __forceinline__ void addKingFinalCapture(
 	uint8_t with,
 	uint8_t to
 ) {
-	//printf("Add king final capture %d %d %d  count %d\n", from, with, to, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -90,7 +88,6 @@ __device__ __forceinline__ void addPawnCapture(
 	uint8_t with,
 	uint8_t to
 ) {
-	//printf("Add pawn capture %d %d %d  count %d\n", from, with, to, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -113,7 +110,6 @@ __device__ __forceinline__ void addNormalMove(
 	uint8_t from,
 	uint8_t to
 ) {
-	//printf("Add new normal move %d %d  count %d\n", from, to, count);
 	count++;
 	uint32_t x = seed;
 	x ^= x << 13;
@@ -195,13 +191,10 @@ __device__  void addKingLandingSquare(
 	bool found_square = false;
 	int8_t it = NEIGHBOURS[enemy_idx][dir];
 
-	//printf("[top landin] from %d, with %d, it %d, dir %d\n", capture_from, enemy_idx, it, dir);
 	while (it != -1) {
-		//printf("it in while: %d\n", it);
 		// zajete pole na glownej linii z mozliwoscia bicia
 		if (occ_enemy & (1 << it)) {
 			if (NEIGHBOURS[it][dir] != -1 && !(occ_total & (1 << NEIGHBOURS[it][dir]))) {
-				//printf("Captuere in main line dir %d\n", dir);
 
 				addKingBranchingCapture(move_packed, seed, count, capture_from, enemy_idx, NEIGHBOURS[it][(dir + 2) % 4], dir, it);
 				found_square = true;
@@ -215,18 +208,14 @@ __device__  void addKingLandingSquare(
 
 		// mozliwosc rozgalezienia bicia
 		int8_t next_enemy_idx = countEmptySquares(occ_total, occ_enemy, it, (dir + 1) % 4);
-		//printf("Count %d dir %d\n", next_enemy_idx, (dir + 1) % 4);
 		if (next_enemy_idx < 0) {
-			//printf("Captuere dir %d\n", (dir + 1) % 4);
 
 			addKingBranchingCapture(move_packed, seed, count, capture_from, enemy_idx, it, (dir + 1) % 4, -next_enemy_idx);
 			found_square = true;
 		}
 
 		next_enemy_idx = countEmptySquares(occ_total, occ_enemy, it, (dir + 3) % 4);
-		//printf("Count %d dir %d\n", next_enemy_idx, (dir + 3) % 4);
 		if (next_enemy_idx < 0) {
-			//printf("Captuere dir %d\n", (dir + 3) % 4);
 			addKingBranchingCapture(move_packed, seed, count, capture_from, enemy_idx, it, (dir + 3) % 4, -next_enemy_idx);
 			found_square = true;
 		}
@@ -235,9 +224,7 @@ __device__  void addKingLandingSquare(
 		it = NEIGHBOURS[it][dir];
 	}
 
-	//printf("\nfrom %d, with %d after_enemy %d dir %d found square %d\n", capture_from, enemy_idx, NEIGHBOURS[enemy_idx][dir], dir, found_square);
 	if (!found_square) {
-		//printf("Normal landing squares\n");
 		it = NEIGHBOURS[enemy_idx][dir];
 		while (it != -1 && !(occ_total & (1 << it))) {
 			addKingFinalCapture(move_packed, seed, count, capture_from, enemy_idx, it);
@@ -266,7 +253,6 @@ __device__  void chooseKingMove(
 	// sprawdz czy w jakims kierunku jest bicie
 	for (i = 0; i < 4; i++) {
 		ret[i] = countEmptySquares(occ_total, occ_enemy, index, i);
-		//printf("ret: %d\n", ret[i]);
 		if (ret[i] < 0) {
 			found_capture = true;
 		}
@@ -280,13 +266,11 @@ __device__  void chooseKingMove(
 	}
 
 	// nie znaleziono bicia a bylo juz bicie wczesniej
-	//printf("Was cature: %d\n", was_capture);
 	if (was_capture && !found_capture) {
 		return;
 	}
 
 	if (found_capture) {
-		//printf("found capture: %d\n", found_capture);
 		// dodanie bicia i pol na ktorych moze wyladowac pionek przed rozgalezieniem
 		for (i = 0; i < 4; i++) {
 			if (ret[i] < 0) {
@@ -345,7 +329,6 @@ __device__  uint32_t chooseMove(
 		uint8_t i = __ffs(figures) - 1;
 		figures &= ~(1u << i);
 
-		//printf("Checking king moves for index %d\n", i);
 
 		chooseKingMove(
 			move_packed,
@@ -435,8 +418,6 @@ __device__  uint32_t chooseMove(
 
 	}
 
-
-	//printf("Board counter: %d\n", counter);
 	return move_packed;
 }
 
@@ -450,7 +431,6 @@ __device__  void performNormalMove(
 	int8_t from,
 	int8_t to
 ) {
-	//printf("Normal move\n");
 	if (player_pawns & (1 << from)) {
 		player_pawns ^= (1 << from);
 		if (to % 4 == 3 && ((to / 4) % 2) == 0 ||
@@ -481,13 +461,10 @@ __device__  void performPawnCapture(
 	int8_t to,
 	bool is_white_move
 ) {
-	//printf("Capture %d %d %d\n", from, with, to);
-
 	player_pawns ^= 1 << from;
 	uint8_t final_to;
 	from = to;
 	while (1) {
-		//printf("while\n");
 		uint32_t next_move = 0;
 		uint8_t count = 0;
 		from = to;
@@ -495,8 +472,6 @@ __device__  void performPawnCapture(
 
 		opponent_pawns &= ~(1 << with);
 		opponent_kings &= ~(1 << with);
-		//printf("After\n");
-
 
 		for (char j = 0; j < 4; j++) {
 			with = NEIGHBOURS[from][j];
@@ -516,7 +491,6 @@ __device__  void performPawnCapture(
 						(uint8_t)to
 					);
 
-
 				}
 			}
 
@@ -534,12 +508,6 @@ __device__  void performPawnCapture(
 			placeholder,
 			placeholder
 		);
-		/*
-		printf("Unpacked next move: %d %d %d\n",
-			(uint8_t&)from,
-			(uint8_t&)with,
-			(uint8_t&)to);*/
-
 
 	}
 
@@ -565,23 +533,16 @@ __device__  void perfromKingCapture(
 	uint8_t type,
 	uint8_t dir,
 	int8_t next) {
-	/*printf("King capture %d %d %d dir %d next %d\n", from, with, to, dir, next);
-	printf("type %d\n", type);*/
-
 	player_kings &= ~(1 << from);
 	while (1) {
-		//printf("King capture loop\n");
 		opponent_kings &= ~(1 << with);
 		opponent_pawns &= ~(1 << with);
 		if (type == MOVE_TYPE_KING_FINAL_CAPTURE) {
-			//printf("King final capture\n");
-
 			player_kings |= (1 << to);
 
 			break;
 		}
 		if (type == MOVE_TYPE_KING_BRANCHING_CAPTURE) {
-			//printf("King branching capture\n");
 			uint32_t next_move = 0;
 			uint8_t count = 0;
 
@@ -604,7 +565,6 @@ __device__  void perfromKingCapture(
 				(uint8_t&)dir,
 				(uint8_t&)next
 			);
-			//printf("Next move packed: %u\n %d %d %d dir %d type %d next %d\n", next_move, from, with, to, dir, type, next);
 		}
 	}
 
@@ -631,9 +591,6 @@ __device__ void performMove(
 		dir,
 		next
 	);
-	//printf("\n\n\n\n Performing move \n\n\n");
-	//printf("Move packed: %u\n %d %d %d dir %d next %d \n  type %d\n", move_packed, from, with, to, dir, next, type);
-
 	switch (type) {
 	case MOVE_TYPE_NORMAL:
 		performNormalMove(player_pawns, player_kings, from, to);
@@ -648,62 +605,6 @@ __device__ void performMove(
 
 }
 
-
-
-
-
-
-
-
-// todo usuanc ten print  (nastepne fucnkcje)
-__device__ void writeBoardToBuffcd(char buffer[72], uint32_t board, char c) {
-	int x = 0;
-	int y = 1;
-	int pos = 0;
-	for (int i = 0; i < 32; i++) {
-		if (board & (1u << (31 - i))) {
-			pos = y * 9 + x;
-			buffer[pos] = c;
-		}
-		y += 2;
-		if (y >= 8) {
-			y = 1 - (y - 8);
-			x++;
-		}
-	}
-}
-
-__device__ void printBoardcd(uint32_t black_pawns, uint32_t white_pawns, uint32_t black_kings, uint32_t white_kings) {
-	char buffer[72];
-	memset(buffer, ' ', 72);
-
-	buffer[71] = '\0';
-
-	for (int i = 0; i < 7; i++) {
-		buffer[i * 9 + 8] = '\n';
-	}
-
-	writeBoardToBuffcd(buffer, black_pawns, 'b');
-	writeBoardToBuffcd(buffer, white_pawns, 'w');
-	writeBoardToBuffcd(buffer, black_kings, 'B');
-	writeBoardToBuffcd(buffer, white_kings, 'V');
-
-	printf("\n");
-	printf("   a b c d e f g h\n");
-	printf("  ----------------\n");
-
-	for (int row = 0; row < 8; row++) {
-		printf("%d| ", 8 - row);
-		for (int col = 0; col < 8; col++) {
-			int pos = row * 9 + col;
-			printf("%c ", buffer[pos]);
-		}
-		printf("\n");
-	}
-
-	printf("  ----------------\n");
-	printf("   a b c d e f g h\n\n");
-}
 
 
 // simulates a single game
@@ -744,13 +645,11 @@ __device__ bool simulate(
 
 		switch (is_white_move) {
 		case true:
-			//printf("Choosing white move\n");
 			move_packed = chooseMove(white_pawns, white_kings, black_kings | black_pawns, occ_total, true, seed);
 			performMove(white_pawns, white_kings, black_pawns, black_kings, move_packed, true, seed);
 
 			break;
 		case false:
-			//printf("Choosing black move\n");
 			move_packed = chooseMove(black_pawns, black_kings, white_kings | white_pawns, occ_total, false, seed);
 			performMove(black_pawns, black_kings, white_pawns, white_kings, move_packed, false, seed);
 
@@ -758,14 +657,6 @@ __device__ bool simulate(
 		}
 		white_strength = __popc(white_pawns) + 2 * __popc(white_kings);
 		black_strength = __popc(black_pawns) + 2 * __popc(black_kings);
-
-
-
-		/*printBoardcd(
-			black_pawns,
-			white_pawns,
-			black_kings,
-			white_kings);*/
 
 
 		// brak progresu
@@ -778,8 +669,6 @@ __device__ bool simulate(
 			) {
 			no_progres_counter++;
 			if(no_progres_counter > NO_PROGRES_LIMIT) {
-				//printf("BRAK PROGRESSU BREAKING\n");
-
 				if(white_strength > black_strength) {
 					is_white_winner = true;
 				}
@@ -799,16 +688,13 @@ __device__ bool simulate(
 
 		// uzyskanie pzewagi po pewnej liczbie ruchow
 		if (total_moves > MIN_MOVES) {
-			//printf("white strength %d black strength %d\n", white_strength, black_strength);
 			if(white_strength >= black_strength * 3) {
 				is_white_winner = true;
-				//printf("PRZEWAGA BIALY BREAKING\n");
 				break;
 			}
 
 			if (black_strength >= white_strength * 3) {
 				is_white_winner = false;
-				//printf("PRZEWAGA CZARNY BREAKING\n");
 				break;
 			}
 		}
@@ -817,7 +703,6 @@ __device__ bool simulate(
 		// brak mozliwych ruchow
 		if (move_packed == 0) {
 			is_white_winner = !is_white_move;
-			//printf("DIDINT FOUND MOVE BREAKING\n");
 			break;
 		}
 
@@ -882,7 +767,6 @@ __global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t
 	);
 	
 	if (is_white_winner) {
-		//printf("white winner thread %d\n", tid);
 		winner[threadIdx.x] = 1;
 	}
 	else {
@@ -890,7 +774,6 @@ __global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t
 	}
 	__syncthreads();
 	reduce(winner, THREADS, ret);
-	//printf("Result block %d: %d\n", blockIdx.x, ret[blockIdx.x]);
 }
 
 __global__ void reduceKernel(uint32_t* to_sum, uint16_t size) {
@@ -961,9 +844,6 @@ uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed, int moves_without
 	}
 
 
-	//printf("Dev runned\n");
-	//printf("results: %f\n", (long double)ret / (BLOCKS * THREADS));
-	//printf("results int: %d\n", ret);
 	return ret;
 }
 
