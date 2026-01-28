@@ -11,15 +11,15 @@
     <ClCompile Include="GPU.cpp">
       <Filter>gpu</Filter>
     </ClCompile>
+    <ClCompile Include="mcts_player.cpp">
+      <Filter>players\mcts_player</Filter>
+    </ClCompile>
+    <ClCompile Include="human_player.cpp">
+      <Filter>players\human_player</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="player.h">
-      <Filter>players</Filter>
-    </ClInclude>
-    <ClInclude Include="mcts_player.h">
-      <Filter>players</Filter>
-    </ClInclude>
-    <ClInclude Include="human_player.h">
       <Filter>players</Filter>
     </ClInclude>
     <ClInclude Include="common.h">
@@ -27,6 +27,12 @@
     </ClInclude>
     <ClInclude Include="moves_getter.h">
       <Filter>players</Filter>
+    </ClInclude>
+    <ClInclude Include="mcts_player.h">
+      <Filter>players\mcts_player</Filter>
+    </ClInclude>
+    <ClInclude Include="human_player.h">
+      <Filter>players\human_player</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -38,6 +44,12 @@
     </Filter>
     <Filter Include="gpu">
       <UniqueIdentifier>{efe48f2b-c2e6-4727-8314-ee8ec25286c0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="players\mcts_player">
+      <UniqueIdentifier>{301fad95-59c2-4176-813c-dbfbdd757b1e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="players\human_player">
+      <UniqueIdentifier>{f817f542-0d1b-4904-b0a5-c9fedb53d753}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

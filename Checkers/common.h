@@ -27,6 +27,8 @@ enum class Color {
 };
 
 
+#define NO_PROGRESS_LIMIT 30
+
 __host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char c);
 
  __host__ __device__ void printBoard(uint32_t black_pawns,

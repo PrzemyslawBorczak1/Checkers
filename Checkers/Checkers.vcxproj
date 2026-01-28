@@ -14,7 +14,9 @@
     <ClCompile Include="common.cpp" />
     <ClCompile Include="GPU.cpp" />
     <ClCompile Include="GPU.h" />
+    <ClCompile Include="human_player.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="mcts_player.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />

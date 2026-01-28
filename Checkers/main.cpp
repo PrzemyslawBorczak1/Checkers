@@ -22,44 +22,31 @@ typedef struct {
 void usage(void) {
     printf(
         "checkers file time game_type color\n"
-        "-file       plik zapisu partii (np. game.txt)\n"
-        "-time       limit czasu na ruch w sekundach (>0)\n"
-        "-game_type  0 = czlowiek-czlowiek, 1 = czlowiek-komputer, 2 = komputer-komputer\n"
-        "-color      0 = biale, 1 = czarne  (w trybie 1 to kolor czlowieka)\n"
+        " file       plik zapisu partii (np. game.txt)\n"
+        " time       limit czasu na ruch w sekundach (>0)\n"
+        " game_type  0 = czlowiek-czlowiek, 1 = czlowiek-komputer, 2 = komputer-komputer\n"
+        " color      0 = biale, 1 = czarne  (w trybie 1 to kolor czlowieka)\n"
         "\n"
     );
 }
-bool save_moves_to_file(const char* filename, const char* all_moves_str, int len)
-{
-    FILE* f = fopen(filename, "wb");
-    if (!f) return false;
 
-    bool ok = (fwrite(all_moves_str, 1, (size_t)len, f) == (size_t)len);
-
-    ok = ok && (fputc('\n', f) != EOF);
-
-    fclose(f);
-    return ok;
-}
-
-static int parse_int_strict(const char* s, int* out) {
+// funkcja pomocnicza do parsowania argumentow komendy 
+int parseInt(const char* s, int* out) {
     char* end = NULL;
     long v;
 
-    if (s == NULL || s[0] == '\0') return 0;
+    if (s == NULL || s[0] == '\0')
+        return 0;
 
     v = strtol(s, &end, 10);
-    if (end == NULL || *end != '\0') return 0;
+    if (end == NULL || *end != '\0') 
+        return 0;
 
     *out = (int)v;
     return 1;
 }
 
-int parse_args(int argc, char** argv, Options* opt) {
-    if (argc == 2 && strcmp(argv[1], "--help") == 0) {
-        usage();
-        return 0;
-    }
+int parseArgs(int argc, char** argv, Options* opt) {
 
     if (argc != 5) {
         printf("Blad: zla liczba argumentow.\n\n");
@@ -74,31 +61,47 @@ int parse_args(int argc, char** argv, Options* opt) {
         return 0;
     }
 
-    if (!parse_int_strict(argv[2], &opt->time_sec) || opt->time_sec <= 0) {
+    if (!parseInt(argv[2], &opt->time_sec) || opt->time_sec <= 0) {
         printf("Blad: time musi byc liczba calkowita > 0.\n\n");
         usage();
         return 0;
     }
 
-    if (!parse_int_strict(argv[3], &opt->game_type) ||
-        (opt->game_type != 0 && opt->game_type != 1 && opt->game_type != 2)) {
+    if (!parseInt(argv[3], &opt->game_type) ||
+        (opt->game_type < 0 || opt->game_type > 2)) {
         printf("Blad: game_type musi byc 0, 1 albo 2.\n\n");
         usage();
         return 0;
     }
 
     int color_int;
-    if (!parse_int_strict(argv[4], &color_int) || (color_int != 0 && color_int != 1)) {
+    if (!parseInt(argv[4], &color_int) || (color_int != 0 && color_int != 1)) {
         printf("Blad: color musi byc 0 (biale) albo 1 (czarne).\n\n");
         usage();
         return 0;
     }
 
     opt->color = (color_int == 0) ? Color::WHITE : Color::BLACK;
-    return 1; // OK
+    return 1;
 }
 
-void decide_players(const Options* opt, int* white_is_human, int* black_is_human) {
+// zapis ruchow do pliku podanego w wywolaniu
+bool saveMovesToFile(const char* filename, const char* all_moves_str, int len)
+{
+    FILE* f = fopen(filename, "wb");
+    if (!f) return false;
+
+    bool ok = (fwrite(all_moves_str, 1, (size_t)len, f) == (size_t)len);
+    if (!(fputc('\n', f) != EOF)) {
+        ok = false;
+    }
+
+    fclose(f);
+    return ok;
+}
+
+// wybor ktory gracz jest czlowiekiem a ktory komputerem (w przypadku gry czlowiek vs komputer color decyduje ktora strona bedzie gracz)
+void decidePlayer(const Options* opt, bool* white_is_human, bool* black_is_human) {
     if (opt->game_type == GT_HH) {
         *white_is_human = 1;
         *black_is_human = 1;
@@ -111,7 +114,7 @@ void decide_players(const Options* opt, int* white_is_human, int* black_is_human
         return;
     }
 
-    // GT_HC: kolor w opt->color to kolor czlowieka
+
     if (opt->color == Color::WHITE) {
         *white_is_human = 1;
         *black_is_human = 0;
@@ -122,7 +125,8 @@ void decide_players(const Options* opt, int* white_is_human, int* black_is_human
     }
 }
 
-void append_move(char* all_moves_str, int* len, char* move_str)
+// dopisanie ruchu do lancucha wszystkich ruchow
+void appendMove(char* all_moves_str, int* len, char* move_str)
 {
     int m = (int)strlen(move_str);
 
@@ -136,80 +140,92 @@ void append_move(char* all_moves_str, int* len, char* move_str)
     all_moves_str[*len] = '\0';
 }
 
-#define NO_PROGRESS_LIMIT 30
+// wydruk ustawien gry
+void printGameSettings(Options opt, bool white_is_human, bool black_is_human) {
+    printf("\n=== Checkers: start gry ===\n");
+    printf("  plik zapisu : %s\n", opt.file);
+    printf("  czas/ruch   : %d s\n", opt.time_sec);
+    printf("  tryb gry    : %d (%s)\n",
+        opt.game_type,
+        (opt.game_type == 0) ? "czlowiek-czlowiek" :
+        (opt.game_type == 1) ? "czlowiek-komputer" :
+        "komputer-komputer");
+    printf("  kolor gracza: %d (%s)\n",
+        (int)opt.color,
+        ((int)opt.color == 0) ? "biale" : "czarne");
+    printf("  sterowanie  : biale=%s, czarne=%s\n",
+        white_is_human ? "czlowiek" : "komputer",
+        black_is_human ? "czlowiek" : "komputer");
+    printf("===========================\n\n");
+}
+
 
 int main(int argc, char** argv) {
-  
+    
+    // todo usunac
     argc = 5;
-    const char* argv_const[] = { "checkers", "game.txt", "1", "2", "0" };
+    const char* argv_const[] = { "checkers", "game.txt", "1", "0", "0" };
     argv = (char**)argv_const;
 
     Options opt;
-    int white_is_human = 0, black_is_human = 0;
+    bool white_is_human = false, black_is_human = false;
 
-    if (!parse_args(argc, argv, &opt)) {
+    if (!parseArgs(argc, argv, &opt)) {
         return 1;
     }
 
-    decide_players(&opt, &white_is_human, &black_is_human);
-
-    printf("Game starts:\n");
-    printf(" file=%s\n", opt.file);
-    printf(" time=%d\n", opt.time_sec);
-    printf(" game_type=%d\n", opt.game_type);
-    printf(" color=%d\n", (int)opt.color);
-    printf(" white_is_human=%d black_is_human=%d\n", white_is_human, black_is_human);
+    decidePlayer(&opt, &white_is_human, &black_is_human);
+	printGameSettings(opt, white_is_human, black_is_human);
 
     Board board = kingArena();
 
-    Player* white_player;
-    if(white_is_human)
-        white_player = new HumanPlayer(Color::WHITE);
-	else
-		white_player = new MCTSPlayer(Color::WHITE, opt.time_sec);
+    Player* white_player = white_is_human ?
+        (Player*)new HumanPlayer(Color::WHITE) :
+		(Player*)new MCTSPlayer(Color::WHITE, opt.time_sec);
 
-    Player* black_player;
-    if(black_is_human)
-        black_player = new HumanPlayer(Color::BLACK);
-	else
-		black_player = new MCTSPlayer(Color::BLACK, opt.time_sec);
+
+    Player* black_player = black_is_human ?
+		(Player*)new HumanPlayer(Color::BLACK) :
+		(Player*)new MCTSPlayer(Color::BLACK, opt.time_sec);
+
 
     Color side_to_move = Color::WHITE;
+
     char move_str[40];
 	char all_moves_str[2048];
+	all_moves_str[0] = '\0';
 	int moves_len = 0;
 
     Color loser;
 	int no_progress_count = 0;
     while (1) {
 
-		printf("\n\n=====================================\n");
-		printf("No progress count: %d\n", no_progress_count);
-        if (side_to_move == Color::WHITE)
-            printf("White to move:\n");
-        else
-            printf("Black to move:\n");
+        printf("\n\n=====================================\n");
+        printf("Ruchy bez postepu: %d\n", no_progress_count);
 
-		printBoard(board);
-		Board old_board = board;
-		int old_white_pawn_count = __popcnt(board.white_pawns);
-		int old_black_pawn_count = __popcnt(board.black_pawns);
+        printf("Partia: %s\n", all_moves_str);
 
-        if (side_to_move == Color::WHITE)
-            white_player->MakeMove(board, move_str, no_progress_count);
-        else
+        side_to_move == Color::WHITE ? printf("Tura bialego:\n") : printf("Tura czarnego:\n");
+
+        printBoard(board);
+
+        Board old_board = board;
+        int old_white_pawn_count = __popcnt(board.white_pawns);
+        int old_black_pawn_count = __popcnt(board.black_pawns);
+
+        side_to_move == Color::WHITE ?
+            white_player->MakeMove(board, move_str, no_progress_count) :
             black_player->MakeMove(board, move_str, no_progress_count);
 
 
-        // no move
-        if(move_str[0] == '\0') {
-			loser = side_to_move; 
-            printf("No moves: %s\n", move_str);
+		// brak ruchu ktorejs ze stron - koniec gry
+        if (move_str[0] == '\0') {
+            loser = side_to_move;
             break;
-		}
+        }
 
 
-		// no progress 
+		// sprawdzenie braku postepu (brak bicia i ruchow pionkow)
         int white_pawn_count = __popcnt(board.white_pawns);
         int black_pawn_count = __popcnt(board.black_pawns);
 
@@ -221,7 +237,6 @@ int main(int argc, char** argv) {
             no_progress_count++;
             if (no_progress_count > NO_PROGRESS_LIMIT) {
                 loser = Color::UNDEFINED;
-                printf("%d Move without progress: %s\n", no_progress_count, move_str);
                 break;
             }
         }
@@ -229,22 +244,20 @@ int main(int argc, char** argv) {
             no_progress_count = 0;
         }
 
-
-        printf("Move: %s\n", move_str);
-		append_move(all_moves_str, &moves_len, move_str);
-		printf("All moves so far: %s\n", all_moves_str);
-
+        appendMove(all_moves_str, &moves_len, move_str);
         side_to_move = (side_to_move == Color::WHITE) ? Color::BLACK : Color::WHITE;
+
     }
 
     if (loser == Color::WHITE)
-		printf("Black wins!\n");
+		printf("Wygrana czarnego!\n");
 	else if (loser == Color::BLACK)
-        printf("White wins!\n");
+        printf("Wygrana bialego!\n");
     else
-        printf("Draw!\n");
+        printf("Remis!\n");
 
-	save_moves_to_file(opt.file, all_moves_str, moves_len);
+	if(!saveMovesToFile(opt.file, all_moves_str, moves_len))
+		printf("Blad zapisu parti do pliku: %s\n", opt.file);
 
     return 0;
 }

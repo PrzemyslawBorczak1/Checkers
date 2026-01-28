@@ -1,19 +1,31 @@
 #pragma once
-#include <stdio.h>
-#include <string.h>
 #include <vector>
-#include<iostream>
 #include "common.h"
 #include "moves_getter.h"
-
-using namespace std;
-
-
 
 class Player {
 private:
 
-	void buildNeighbourTabs() {
+	void buildCapturesTab() {
+		const int8_t DEST_OFFSETS_CLOCK[4] = { -7, 9, 7, -9 };
+		for (int i = 0; i < 32; i++) {
+			for (int j = 0; j < 4; j++) {
+				int new_ind = i + DEST_OFFSETS_CLOCK[j];
+				if (new_ind > 31 || new_ind < 0) {
+					Captures[i][j] = -1;
+					continue;
+				}
+
+				if (new_ind / 4 % 2 != i / 4 % 2) {
+					Captures[i][j] = -1;
+					continue;
+				}
+				Captures[i][j] = new_ind;
+			}
+		}
+	}
+
+	void buildNeighbourTab() {
 		const int8_t WITH_OFFSETS_CLOCK[4] = { -4, 4, 3, -5 };
 
 		for (int i = 0; i < 32; i++) {
@@ -30,25 +42,6 @@ private:
 					continue;
 				}
 				Neighbours[i][j] = new_ind;
-			}
-		}
-
-
-
-		const int8_t DEST_OFFSETS_CLOCK[4] = { -7, 9, 7, -9 };
-		for (int i = 0; i < 32; i++) {
-			for (int j = 0; j < 4; j++) {
-				int new_ind = i + DEST_OFFSETS_CLOCK[j];
-				if (new_ind > 31 || new_ind < 0) {
-					Captures[i][j] = -1;
-					continue;
-				}
-
-				if (new_ind / 4 % 2 != i / 4 % 2) {
-					Captures[i][j] = -1;
-					continue;
-				}
-				Captures[i][j] = new_ind;
 			}
 		}
 	}
@@ -72,7 +65,6 @@ private:
 		}
 	}
 
-
 	MovesGetter moves_getter{ Neighbours, Captures };
 protected:
 	Color player_color;
@@ -84,7 +76,8 @@ protected:
 
 public:
     Player(Color c) : player_color(c) {
-		buildNeighbourTabs();
+		buildCapturesTab();
+		buildNeighbourTab();
 		buildRayTab();
 
 		moves_getter = MovesGetter(Neighbours, Captures);
@@ -92,10 +85,9 @@ public:
 
     virtual void MakeMove(Board& board, char* ret, int moves_without_progress) = 0;
 
-	vector<PossibleMove> getAllMoves(const Board& board, Color side_to_move) {
+	std::vector<PossibleMove> getAllMoves(const Board& board, Color side_to_move) {
 		return moves_getter.getAllMoves(board, side_to_move);
 	}
-
 
 
 	bool fieldToChar(int idx, char* out) {
@@ -112,8 +104,28 @@ public:
 		return true;
 	}
 
+	bool charToField(char* sq, int& idx) {
+		if (!sq) return false;
 
-	void moveToChar(vector<int> mv, bool is_capture, char* ret) {
+		char file = sq[0];
+		char rank = sq[1];
+
+		if (file < 'a' || file > 'h') return false;
+		if (rank < '1' || rank > '8') return false;
+
+		int f = file - 'a';
+		int r = rank - '1';
+
+
+		if ((f + r) % 2 == 1) {
+			return false;
+		}
+		idx = (r + (7 - f) * 8) / 2;
+
+		return true;
+	}
+
+	void moveToChar(std::vector<int> mv, bool is_capture, char* ret) {
 		char delim = is_capture ? ':' : '-';
 		int i = 0;
 		for (int field : mv) {
@@ -124,8 +136,26 @@ public:
 		ret[3 * i - 1] = '\0';
 	}
 
+	int dirFromSteps(int s1, int s2) {
 
-	
+		s1 = s1 * 2 + (1 - (s1 / 4) % 2);
+		s2 = s2 * 2 + (1 - (s2 / 4) % 2);
+
+		int x1 = s1 / 8, y1 = s1 % 8;
+		int x2 = s2 / 8, y2 = s2 % 8;
+
+		int dx = x2 - x1;
+		int dy = y2 - y1;
+
+		if (dx == 0 && dy == 0) return -1;
+
+		if (dx < 0 && dy > 0) return 0;
+		if (dx > 0 && dy > 0) return 1;
+		if (dx > 0 && dy < 0) return 2;
+		if (dx < 0 && dy < 0) return 3;
+
+		return -1;
+	}
 };
 
 
