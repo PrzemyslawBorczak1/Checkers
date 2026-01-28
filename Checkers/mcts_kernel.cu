@@ -714,15 +714,15 @@ __device__ bool simulate(
 	uint32_t black_pawns,
 	uint32_t black_kings,
 	uint32_t& seed,
-	bool is_white_move
+	bool is_white_move,
+	int moves_without_progres
 )
 {
-	
 	uint32_t move_packed;
 	bool is_white_winner = false;
 
 
-	uint8_t no_progres_counter = 0;
+	uint8_t no_progres_counter = moves_without_progres;
 	uint16_t total_moves = 0;
 
 
@@ -779,7 +779,17 @@ __device__ bool simulate(
 			no_progres_counter++;
 			if(no_progres_counter > NO_PROGRES_LIMIT) {
 				//printf("BRAK PROGRESSU BREAKING\n");
-				is_white_winner = !is_white_move;
+
+				if(white_strength > black_strength) {
+					is_white_winner = true;
+				}
+				else if (black_strength > white_strength) {
+					is_white_winner = false;
+				}
+				else {
+					is_white_winner = !is_white_move;
+				}
+
 				break;
 			}
 		}
@@ -855,7 +865,7 @@ __device__ void reduce(int16_t* to_sum, uint16_t size, uint32_t* save) {
 	}
 }
 
-__global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t seed_cpu) {
+__global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t seed_cpu, int moves_without_progres) {
 	__shared__ int16_t winner[THREADS];
 
 	int tid = threadIdx.x + blockIdx.x * blockDim.x;
@@ -867,7 +877,8 @@ __global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t
 		b->black_pawns,
 		b->black_kings,
 		seed,
-		is_white_move
+		is_white_move,
+		moves_without_progres
 	);
 	
 	if (is_white_winner) {
@@ -920,7 +931,7 @@ cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4],
 }
 
 
-uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed) {
+uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed, int moves_without_progres) {
 
 	uint32_t* dev_ret = nullptr;
 	cudaError_t cs = cudaMalloc((void**)&dev_ret, BLOCKS * sizeof(uint32_t));
@@ -928,7 +939,7 @@ uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed) {
 		fprintf(stderr, "cudaMalloc dev_ret failed: %s\n", cudaGetErrorString(cs));
 	}
 	bool is_white_move = (color == Color::WHITE);
-	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret, is_white_move, seed);
+	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret, is_white_move, seed, moves_without_progres);
 
 	cs = cudaDeviceSynchronize();
 	if (cs != cudaSuccess) {

@@ -22,7 +22,8 @@ struct Board {
 
 enum class Color {
     WHITE,
-    BLACK
+    BLACK,
+	UNDEFINED
 };
 
 

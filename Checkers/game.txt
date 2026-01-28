@@ -1,0 +1,1 @@
+b8-a7 c1-a3 d8-a5 g1-h2 a7-b8 e1-h4 a5-d8 h2-g1 f8-h6 a3-c1 h6-f8 h4-e1 f8-h6 c1-a3 d8-h4 a3-c1 b8-h2 e1-a5 h4-d8 c1-a3 h6-f8 a5-e1 h2-b8 a3-c1 b8-h2 e1-a5 f8-e7 c1-a3 e7-f8 g1-a7

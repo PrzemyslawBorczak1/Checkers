@@ -29,6 +29,18 @@ void usage(void) {
         "\n"
     );
 }
+bool save_moves_to_file(const char* filename, const char* all_moves_str, int len)
+{
+    FILE* f = fopen(filename, "wb");
+    if (!f) return false;
+
+    bool ok = (fwrite(all_moves_str, 1, (size_t)len, f) == (size_t)len);
+
+    ok = ok && (fputc('\n', f) != EOF);
+
+    fclose(f);
+    return ok;
+}
 
 static int parse_int_strict(const char* s, int* out) {
     char* end = NULL;
@@ -110,6 +122,19 @@ void decide_players(const Options* opt, int* white_is_human, int* black_is_human
     }
 }
 
+void append_move(char* all_moves_str, int* len, char* move_str)
+{
+    int m = (int)strlen(move_str);
+
+    if (*len > 0) {
+        all_moves_str[(*len)++] = ' ';
+    }
+
+    memcpy(all_moves_str + *len, move_str, (size_t)m);
+    *len += m;
+
+    all_moves_str[*len] = '\0';
+}
 
 #define NO_PROGRESS_LIMIT 30
 
@@ -135,7 +160,7 @@ int main(int argc, char** argv) {
     printf(" color=%d\n", (int)opt.color);
     printf(" white_is_human=%d black_is_human=%d\n", white_is_human, black_is_human);
 
-    Board board = kingBlocking2();
+    Board board = kingArena();
 
     Player* white_player;
     if(white_is_human)
@@ -150,7 +175,10 @@ int main(int argc, char** argv) {
 		black_player = new MCTSPlayer(Color::BLACK, opt.time_sec);
 
     Color side_to_move = Color::WHITE;
-    char* move_str;
+    char move_str[40];
+	char all_moves_str[2048];
+	int moves_len = 0;
+
     Color loser;
 	int no_progress_count = 0;
     while (1) {
@@ -161,15 +189,16 @@ int main(int argc, char** argv) {
             printf("White to move:\n");
         else
             printf("Black to move:\n");
+
 		printBoard(board);
 		Board old_board = board;
 		int old_white_pawn_count = __popcnt(board.white_pawns);
 		int old_black_pawn_count = __popcnt(board.black_pawns);
 
         if (side_to_move == Color::WHITE)
-            move_str = white_player->MakeMove(board);
+            white_player->MakeMove(board, move_str, no_progress_count);
         else
-            move_str = black_player->MakeMove(board);
+            black_player->MakeMove(board, move_str, no_progress_count);
 
 
         // no move
@@ -191,7 +220,7 @@ int main(int argc, char** argv) {
             ) {
             no_progress_count++;
             if (no_progress_count > NO_PROGRESS_LIMIT) {
-                loser = side_to_move;
+                loser = Color::UNDEFINED;
                 printf("%d Move without progress: %s\n", no_progress_count, move_str);
                 break;
             }
@@ -202,14 +231,20 @@ int main(int argc, char** argv) {
 
 
         printf("Move: %s\n", move_str);
+		append_move(all_moves_str, &moves_len, move_str);
+		printf("All moves so far: %s\n", all_moves_str);
 
         side_to_move = (side_to_move == Color::WHITE) ? Color::BLACK : Color::WHITE;
     }
 
     if (loser == Color::WHITE)
 		printf("Black wins!\n");
-    else
+	else if (loser == Color::BLACK)
         printf("White wins!\n");
+    else
+        printf("Draw!\n");
+
+	save_moves_to_file(opt.file, all_moves_str, moves_len);
 
     return 0;
 }

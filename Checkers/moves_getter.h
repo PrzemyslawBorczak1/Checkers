@@ -10,6 +10,7 @@ using namespace std;
 struct PossibleMove {
 	vector<int> move;
 	Board resulting_board;
+	bool is_capture;
 };
 
 struct RecBoard {
@@ -401,6 +402,13 @@ public:
 			}
 		}
 
+
+		if(is_capture)
+			for (auto& mv : moves)
+				mv.is_capture = true;
+		else
+			for (auto& mv : moves)
+				mv.is_capture = false;
 
 		return moves;
 	}

@@ -51,75 +51,28 @@ public:
         return (c == Color::WHITE) ? "WHITE" : "BLACK";
     }
 
-    void debug_print_children(MCTSTreeNode* node) {
-        if (!node) {
-            std::cout << "[DEBUG] node == nullptr\n";
-            return;
-        }
 
-        std::cout << "\n=== NODE DEBUG ===\n";
-        std::cout << "node: " << ((int)node % 100)
-            << " side_to_move: " << color_name(node->side_to_move)
-            << " visits: " << node->visits
-            << " wins: " << node->wins
-            << " is_expanded: " << (node->is_expanded ? "true" : "false")
-            << " children: " << node->children.size()
-            << "\n";
 
-        if (node->children.empty()) {
-            std::cout << "no children\n";
-            return;
-        }
-
-        for (size_t i = 0; i < node->children.size(); ++i) {
-            MCTSTreeNode* ch = node->children[i];
-
-            std::cout << "  [" << i << "] ";
-
-            if (!ch) {
-                std::cout << "nullptr\n";
-                continue;
-            }
-
-            double wr = (ch->visits > 0) ? (double)ch->wins / (double)ch->visits : 0.0;
-
-            std::cout << "ptr=" << ((int)ch % 100)
-                << " v=" << ch->visits
-                << " w=" << ch->wins
-                << " win_ratio=" << wr
-                << " expanded=" << (ch->is_expanded ? "true" : "false")
-                << " kids=" << ch->children.size()
-                << "\n";
-			printBoard(ch->possible_move.resulting_board);
-        }
-    }
-
-    void print_root_children_summary(MCTSTreeNode* root) {
+    void printCollectedStats(MCTSTreeNode* root, uint64_t counter) {
         if (!root) {
             printf("[MCTS] root == nullptr\n");
             return;
         }
 
-        printf("\n================= ROOT CHILDREN SUMMARY =================\n");
-        printf("Root: visits=%d wins=%d side_to_move=%s expanded=%s children=%zu\n",
+
+        printf("VISITS=%d WINS=%d side to move = %s vist/second: %f Milions\n",
             root->visits, root->wins, color_name(root->side_to_move),
-            root->is_expanded ? "true" : "false",
-            root->children.size());
+            (double)root->visits / (time_limit_sec * 1000000));
 
         if (root->children.empty()) {
-            printf("No children.\n");
+            printf("No following moves found.\n");
             printf("=========================================================\n");
             return;
         }
 
-        printf("\n# | ptr           | visits     | wins       | winrate(W)\n");
+        printf("\n# | move           | visits     | wins       | winrate(W)\n");
         printf("--+---------------+------------+------------+-----------\n");
 
-        int best_by_visits_i = -1;
-        int best_visits = -1;
-
-        int best_by_wr_i = -1;
-        double best_wr = -1.0;
 
         for (size_t i = 0; i < root->children.size(); ++i) {
             MCTSTreeNode* ch = root->children[i];
@@ -130,33 +83,19 @@ public:
                 continue;
             }
 
-            double wr = (ch->visits > 0) ? ((double)ch->wins / (double)ch->visits) : 0.0;
+            double wr = (root->side_to_move == Color::WHITE) ? ((double)ch->wins / (double)ch->visits) : 1.0 - (double)ch->wins / (double)ch->visits;
 
-            printf("%2zu| %p | %10d | %10d | %9.4f\n",
-                i, (void*)ch, ch->visits, ch->wins, wr);
-
-            if (ch->visits > best_visits) {
-                best_visits = ch->visits;
-                best_by_visits_i = (int)i;
-            }
-
-            // winrate ma sens dopiero jak visits>0
-            if (ch->visits > 0 && wr > best_wr) {
-                best_wr = wr;
-                best_by_wr_i = (int)i;
-            }
+            char move[40];
+            moveToChar(ch->possible_move.move, ch->possible_move.is_capture, move);
+            printf("%2zu| %s | %10d | %10d | %9.4f\n",
+                i, move, ch->visits, ch->wins, wr);
         }
 
-        printf("\nBest by visits : child #%d (visits=%d)\n", best_by_visits_i, best_visits);
-        if (best_by_wr_i >= 0)
-            printf("Best winrate(W): child #%d (wr=%.4f)\n", best_by_wr_i, best_wr);
-
-        printf("=========================================================\n\n");
-    }
+	}
 
 
-    int simulate(Board board, Color next_color, uint32_t seed) {
-        uint32_t ret = gpu.simulate(board, next_color, seed);
+    int simulate(Board board, Color next_color, uint32_t seed, int moves_without_progress) {
+        uint32_t ret = gpu.simulate(board, next_color, seed, moves_without_progress);
         return ret;
        
     }
@@ -261,7 +200,7 @@ public:
         return s ? s : 1;
     }
 
-    MCTSTreeNode* best_child_by_winrate(MCTSTreeNode* root) {
+    MCTSTreeNode* findBest(MCTSTreeNode* root) {
         if (!root || root->children.empty()) return nullptr;
 
         MCTSTreeNode* best = nullptr;
@@ -283,38 +222,43 @@ public:
         return best;
     }
 
-    char* MakeMove(Board& board) override {
+
+
+    void MakeMove(Board& board, char* ret, int moves_without_progress) override {
         printf("MCTS Player making move:\n");
 		PossibleMove root_pm = { {}, board };
 		root = new MCTSTreeNode(root_pm, player_color);
         uint64_t base_seed =
             (uint64_t)std::chrono::high_resolution_clock::now().time_since_epoch().count();
-
+        
 
         auto start = std::chrono::steady_clock::now();
 		int counter = 0;
         while (std::chrono::steady_clock::now() - start < std::chrono::milliseconds(time_limit_sec * 1000 - 50)) {
             MCTSTreeNode* node = select(root);
-            if (!node) continue;
+            if (!node) 
+                continue;
             
-            int wins = simulate(node->possible_move.resulting_board, node->side_to_move, seed_for_iter(base_seed,counter));
+            int wins = simulate(node->possible_move.resulting_board, node->side_to_move, seed_for_iter(base_seed,counter), moves_without_progress);
             backpropagate(node, wins, BLOCKS * THREADS);
             counter++;
-
         }
 
-
-		printf("MCTS selection complete. Choosing best move...\n");
-
-		printf("Visiting counter: %d root children: %d  vist/second: %fM\n",counter, (int)root->visits, (double)root->visits / (time_limit_sec * 1000000));
-        print_root_children_summary(root);
-		MCTSTreeNode* best_move_node = best_child_by_winrate(root);
+        printf("\n================= SUMMARY =================\n");
+        printCollectedStats(root, counter);
+		MCTSTreeNode* best_move_node = findBest(root);
         if (!best_move_node) {
             printf("MCTSPlayer: No best move found! Returning null move.\n");
-            return "\0";
+			ret[0] = '\0';
+            return;
 		}
-		printf("Best move selected: %d\n", (int)best_move_node);
+        moveToChar(best_move_node->possible_move.move, best_move_node->possible_move.is_capture, ret);
+		printf("Best move selected: %s\n", ret);
+
+
+        printf("=========================================================\n\n");
+		board = best_move_node->possible_move.resulting_board;
     
-        return "\0";
     }
+
 };

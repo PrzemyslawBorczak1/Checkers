@@ -43,50 +43,12 @@ private:
 
 
     bool isCaptureOnBoard(Board& board) {
-		uint32_t occ_total = board.white_pawns | board.white_kings | board.black_pawns | board.black_kings;
-        
-		uint32_t player_pawns, player_kings, occ_opponenet;
-
-
-        if (player_color == Color::WHITE) {
-            player_kings = board.white_kings;
-			player_pawns = board.white_pawns;
-            occ_opponenet = board.black_pawns | board.black_kings;
-        }
-        else {
-			player_kings = board.black_kings;
-            player_pawns = board.black_pawns;
-			occ_opponenet = board.white_pawns | board.white_kings;
-        }
-            
-
-		for (int i = 0; i < 32; i++) {
-            if (player_kings & (1 << i)) {
-                for (int j = 0; j < 4; j++) {
-                    if(countEmptySquaresCPU(occ_total, occ_opponenet, i, j) < 0)
-						return true;
-                }
+		getAllMoves(board, player_color);
+        for (auto pm : getAllMoves(board, player_color)) {
+            if (pm.is_capture) {
+                return true;
             }
-
-
-            if(player_pawns & (1 << i)) {
-                for (int j = 0; j < 4; j++) {
-                    uint32_t with = Neighbours[i][j];
-                    uint32_t to = Captures[i][j];
-                    if (with == -1 || to == -1) {
-                        continue;
-                    }
-
-                    if ((occ_opponenet & (1 << with))) {
-                        if (!(occ_total & (1 << to))) {
-                            return true;
-                        }
-                    }
-                }
-			}
-		}
-    
-        
+        }
 		return false;
     
     }
@@ -113,6 +75,7 @@ private:
     }
 
     bool parseMove(char* move_str, vector<int>& steps, char delim) {
+		printf("Parsing move: %s\n", move_str);    
         char* current = move_str;
         steps.clear();
 
@@ -169,143 +132,135 @@ private:
         return -1;
     }
 
-    bool isEmpty(int from, int to, int dir, uint32_t occ_total) {
-        int iter = Neighbours[from][dir];
-        while (iter != -1 && !(occ_total & (1 << iter)))
-        {
+    vector<int> normalizeMove( vector<int>& steps)
+    {
+        const int n = (int)steps.size();
+        if (n <= 2) return steps; 
 
-            printf("iter %d\n", iter);
-            if (iter == to) {
-                return true;
-            }
-            iter = Neighbours[iter][dir];
+        vector<int> out;
+        out.reserve(n);
+        out.push_back(steps[0]); 
+
+        for (int i = 1; i < n - 1; ++i) {
+            int d1 = dirFromSteps(steps[i - 1], steps[i]);
+            int d2 = dirFromSteps(steps[i], steps[i + 1]);
+
+            if (d1 == d2) continue;
+
+            out.push_back(steps[i]);
         }
-        printf("zajete pole %d\n", iter);
-        return false;
 
+        out.push_back(steps[n - 1]); 
+        return out;
     }
 
-    bool perforomCaptureCheck(vector<int>& steps, Board board) {
-        return false;
+    bool moveEqualsNormalized( vector<int>& a, vector<int>& b)
+    {
+		char buffa[40];
+		char buffb[40];
+		moveToChar(a, false, buffa);
+		moveToChar(b, false, buffb);
+		printf("Comparing moves: %s  against  %s\n", buffa, buffb);
+
+
+        vector<int> na = normalizeMove(a);
+        vector<int> nb = normalizeMove(b);
+        return na == nb;
     }
 
-   
-    bool performNormalMoveCheck(vector<int>& steps, Board& board) {
-        printf("Normal move \n");
-        if (steps.size() != 2 || steps[0] == steps[1]) {
-            printf("Bad move %d %d\n", steps[0], steps[1]);
-            return false;
-        }
+    PossibleMove* findMoveNormalized(vector<PossibleMove>& pm, vector<int>& m)
+    {
+        vector<int> nm = normalizeMove(m);
 
-        int dir = dirFromSteps(steps[0], steps[1]);
-        if (dir < 0) {
-            printf("Bad move no dir %d %d\n", steps[0], steps[1]);
-            return false;
-        }
-		printf("Direction %d\n", dir);
-        if(isEmpty(steps[0], steps[1], dir, 
-            board.white_pawns | board.white_kings | board.black_pawns | board.black_kings)) {
-            switch (player_color)
-            {
-            case Color::WHITE:
-                if (board.white_pawns & (1 << steps[0])) {
-
-                    printf("pionek step 0 %d \n", steps[0]);
-                    if (dir == 0 || dir == 1) {
-                        board.white_pawns &= ~(1 << steps[0]);
-                        board.white_pawns |= (1 << steps[1]);
-                        return true;
-                    }
-                    return false;
-                }
-                else if (board.white_kings & (1 << steps[0])) {
-                    board.white_kings &= ~(1 << steps[0]);
-                    board.white_kings |= (1 << steps[1]);
-                    return true;
-                }
-                return false;
-                break;
-            case Color::BLACK:
-                if (board.black_pawns & (1 << steps[0])) {
-                    if (dir == 2 || dir == 3) {
-                        board.black_pawns &= ~(1 << steps[0]);
-                        board.black_pawns |= (1 << steps[1]);
-                        return true;
-                    }
-                    return false;
-                }
-                else if (board.black_kings & (1 << steps[0])) {
-                    board.black_kings &= ~(1 << steps[0]);
-                    board.black_kings |= (1 << steps[1]);
-                    return true;
-                }
-                break;
+        for (auto& p : pm) {
+            if (normalizeMove(p.move) == nm) {
+                return &p;
             }
+        }
+        return nullptr;
+    }
+
+    void printMoveVector(vector<PossibleMove> pm) {
+        for (auto p: pm) {
+            
+            char buff[40];
+			moveToChar(p.move, p.is_capture, buff);
+			printf("Move: %s\n", buff);
 		}
-       
-    
-    }
+        printf("\n");
+	}
 
 
 public:
     HumanPlayer(Color c) : Player(c) {}
 
-    char* MakeMove(Board& board)  {
+    void MakeMove(Board& board, char* ret, int moves_without_progress)  {
+		ret[0] = '\0';
+		char buf[100];
+		buf[0] = '\0';
         printf("\nHuman ruch\n");
 
-		bool is_capture = isCaptureOnBoard(board);
-        char delim;
-        if(is_capture) {
-            printf("Masz bicie!\n");
-			delim =  ':';
-		}
-        else {
-            delim = '-';
+		vector<PossibleMove> possible_moves = getAllMoves(board, player_color);
+        if (possible_moves.empty()) {
+            printf("Brak mozliwych ruchow!\n");
+			buf[0] = '\0';
+			return;
         }
+		bool is_capture = false;
+        if (possible_moves[0].is_capture) {
+			is_capture = true;
+            printf("Masz bicie!\n");
+        }
+
+		char delim = is_capture ? ':' : '-';
 
         vector<int> steps;
 
-        char buf[256];
 
 
         while (true)
         {
+			buf[0] = '\0';
+			printf("mozliwe ruchy:\n");
+			printMoveVector(possible_moves);
             printf("Podaj ruch: ");
             fflush(stdout);
 
             if (!fgets(buf, (int)sizeof(buf), stdin)) {
-                return "\0";
+				ret[0] = '\0';
+                return;
             }
             size_t n = strlen(buf);
-            if (n > 0 && buf[n - 1] == '\n')
-                buf[n - 1] = '\0';
+            while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r')) {
+                buf[--n] = '\0';
+            }
 
             if (!parseMove(buf, steps, delim)) {
-                printf("Nie odpowiedni ruch\n");
+                printf("Nie odpowiedni format ruchu\n");
                 continue;
             }
 
             printf("ruch: %s\n", buf);
+            printf("vec: %s\n", buf);
             for (int i = 0; i < (int)steps.size(); i++) {
-                printf("%d,\n", steps[i]);
+                printf(" %d ", steps[i]);
             }
 
-            if (is_capture) {
+			auto fn = findMoveNormalized(possible_moves, steps);
+            if(fn == nullptr) {
+                printf("Ruch nie istnieje w dozwolonych\n");
                 
-                if (perforomCaptureCheck(steps, board)) {
-					break;
-                }
+                continue;
             }
-            else {
-
-                if (performNormalMoveCheck(steps, board)) {
-                    break;
-                }
-            }
+            
+			board = fn->resulting_board;
+			printf("Ruch zaakceptowany\n");
+            printf("ret string: %s\n", buf);
+      
+			strcat(ret, buf);
+			return;
 
         }
-
-        return buf;
     }
 };
 

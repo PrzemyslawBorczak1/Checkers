@@ -72,6 +72,7 @@ private:
 		}
 	}
 
+
 	MovesGetter moves_getter{ Neighbours, Captures };
 protected:
 	Color player_color;
@@ -89,11 +90,40 @@ public:
 		moves_getter = MovesGetter(Neighbours, Captures);
 	}
 
-    virtual char* MakeMove(Board& board) = 0;
+    virtual void MakeMove(Board& board, char* ret, int moves_without_progress) = 0;
 
 	vector<PossibleMove> getAllMoves(const Board& board, Color side_to_move) {
 		return moves_getter.getAllMoves(board, side_to_move);
 	}
+
+
+
+	bool fieldToChar(int idx, char* out) {
+
+		int s = idx * 2 + (1 - (idx / 4) % 2);
+
+		int f = 7 - s / 8;
+		int r = s % 8;
+
+
+		out[0] = char('a' + f);
+		out[1] = char('1' + r);
+		out[2] = '\0';
+		return true;
+	}
+
+
+	void moveToChar(vector<int> mv, bool is_capture, char* ret) {
+		char delim = is_capture ? ':' : '-';
+		int i = 0;
+		for (int field : mv) {
+			fieldToChar(field, ret + i * 3);
+			ret[3 * i + 2] = delim;
+			i++;
+		}
+		ret[3 * i - 1] = '\0';
+	}
+
 
 	
 };
