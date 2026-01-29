@@ -3,6 +3,7 @@
 
 #include "cuda_runtime.h"
 
+#define NO_PROGRESS_LIMIT 30
 // czarne na gorze
 // uklad
 // notacja
@@ -27,8 +28,8 @@ enum class Color {
 };
 
 
-#define NO_PROGRESS_LIMIT 30
 
+// fucnkje drukuajce plansze
 __host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char c);
 
  __host__ __device__ void printBoard(uint32_t black_pawns,
@@ -38,5 +39,5 @@ __host__ __device__ void writeBoardToBuff(char buffer[72], uint32_t board, char 
 
 __host__ __device__ void printBoard(Board board);
 
-
+// poczatkowa pozycja
 Board startBoard();

@@ -5,7 +5,7 @@
 
 class Player {
 private:
-
+	// funckje pomocnicze do budowy tablic
 	void buildCapturesTab() {
 		const int8_t DEST_OFFSETS_CLOCK[4] = { -7, 9, 7, -9 };
 		for (int i = 0; i < 32; i++) {
@@ -65,6 +65,7 @@ private:
 		}
 	}
 
+	// oddzielny obiekt do generowania legalnych
 	MovesGetter moves_getter{ Neighbours, Captures };
 protected:
 	Color player_color;
@@ -83,13 +84,16 @@ public:
 		moves_getter = MovesGetter(Neighbours, Captures);
 	}
 
+	// glowna funckaj klasy odpowidziealna za wykonanie tury gracza
     virtual void MakeMove(Board& board, char* ret, int moves_without_progress) = 0;
+
 
 	std::vector<PossibleMove> getAllMoves(const Board& board, Color side_to_move) {
 		return moves_getter.getAllMoves(board, side_to_move);
 	}
 
 
+	// funkcje pomocnicze do obslugi termianla
 	bool fieldToChar(int idx, char* out) {
 
 		int s = idx * 2 + (1 - (idx / 4) % 2);

@@ -203,19 +203,6 @@ static inline int popcount(uint32_t x)
 
 int main(int argc, char** argv) {
     
-    static char* test_argv[] = {
-     (char*)"checkers",
-     (char*)"game.txt",
-     (char*)"2:3",
-     (char*)"2",
-     (char*)"0",
-     NULL
-    };
-
-    argv = test_argv;
-    argc = 5;
-    
-
     Options opt;
     bool white_is_human = false, black_is_human = false;
 

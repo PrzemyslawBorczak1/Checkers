@@ -53,7 +53,7 @@ private:
 	RecBoard rec_board;
 	Board active_board;
 
-
+	// funkcej dodajace odpowiednie ruchy
 	void addPawnMove(vector<int> move) {
 		PossibleMove pm;
 		pm.move = move;
@@ -154,21 +154,7 @@ private:
 		moves.push_back(pm);
 	}
 
-
-	void show() {
-		printf("show\n");
-		for (const auto& mv : moves) {
-			std::cout << "[ ";
-			for (int x : mv.move) std::cout << x << ' ';
-			std::cout << "]\n";
-			printf("old board:\n");
-			printBoard(active_board);
-			printf("new board:\n");
-			printBoard(mv.resulting_board);
-			printf("\n\n\n");
-		}
-	}
-
+	// wyczyszeczenie ruchow jelsi nie byly biciami a znaleziono bicie
 	void setIsCaptureTrue() {
 		if (is_capture == false) {
 			moves.clear();
@@ -273,7 +259,6 @@ private:
 		int lines[4];
 		for (int dir = 0; dir < 4; dir++) {
 			lines[dir] = checkLine(occ_enemy, occ_total, from, dir);
-			//printf("Line first %d: %d\n", i, lines[i]);
 			if (lines[dir] < 0) {
 				setIsCaptureTrue();
 				kingCaptures(occ_enemy & ~(1 << -lines[dir]), occ_total & ~(1 << -lines[dir] | 1 << from), -lines[dir], dir, move);
@@ -281,10 +266,8 @@ private:
 			}
 		}
 
-		//printf("Is capture: %d\n", is_capture);
 		if (!is_capture) {
 			for (int dir = 0; dir < 4; dir++) {
-				//printf("Line %d: %d\n", i, lines[i]);
 				addKingFinal(move, occ_total, from, lines[dir], dir);
 			}
 		}
@@ -292,21 +275,16 @@ private:
 
 	// dodaje rozgaleznie bicia damka zaczynajace sie na lini dir
 	void kingCaptures(uint32_t occ_enemy, uint32_t occ_total, int from, int dir, vector<int>& move) {
-		//printf("King captures start %d\n occc_total:\n", index);
-		//print_int(occ_total);
-
+	
 		int next = Neighbours[from][dir];
 		bool continued = false;
 		while (next != -1) {
-			//printf("King capture checking dir %d next %d\n",  dir, next);
-
 			// bicie na glownej linii
 			if (occ_enemy & (1 << next)) {
 				if (Neighbours[next][dir] != -1 && !(occ_total & (1 << Neighbours[next][dir]))) {
 
 					continued = true;
 					int enemy_index = next;
-					//printf("Found capture  in main line next: %d  dir %d enemy %d\n", next, dir, enemy_index);
 					move.push_back(Neighbours[next][(dir + 2) % 4]);
 					kingCaptures(occ_enemy & ~(1 << enemy_index), occ_total & ~(1 << enemy_index), next, dir, move);
 					move.pop_back();
@@ -326,7 +304,6 @@ private:
 			if (line < 0) {
 				continued = true;
 				int enemy_index = -line;
-				//printf("Found capture in  line next: %d  dir %d enemy %d\n", next, dir, enemy_index);
 				move.push_back(next);
 				kingCaptures(occ_enemy & ~(1 << enemy_index), occ_total & ~(1 << enemy_index), enemy_index, (dir + 1) % 4, move);
 				move.pop_back();
@@ -337,7 +314,6 @@ private:
 			if (line < 0) {
 				continued = true;
 				int enemy_index = -line;
-				//printf("Found capture in  line next: %d  dir %d enemy %d\n", next, dir, enemy_index);
 				move.push_back(next);
 				kingCaptures(occ_enemy & ~(1 << enemy_index), occ_total & ~(1 << enemy_index), enemy_index, (dir + 3) % 4, move);
 				move.pop_back();
@@ -349,7 +325,6 @@ private:
 		}
 		// brak dalszych rozgalezien
 		if (!continued) {
-			//printf("Final from %d dir %d\n", index, dir);
 			addKingFinal(move, occ_total, from, checkLine(occ_enemy, occ_total, from, dir), dir);
 		}
 	}

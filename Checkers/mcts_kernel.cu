@@ -25,6 +25,8 @@ __device__ __forceinline__ void unpackMove(
 	next_enemy = (uint8_t)((packed >> 25) & 31u);
 }
 
+// funkcje odpowiedzialne za losowanie kolejnch rodzajow ruchow
+
 
 __device__ __forceinline__ void addKingBranchingCapture(
 	uint32_t& move_packed,
@@ -424,7 +426,7 @@ __device__  uint32_t chooseMove(
 
 
 
-
+// wykonaie normalnego ruchu
 __device__  void performNormalMove(
 	uint32_t& player_pawns,
 	uint32_t& player_kings,
@@ -449,7 +451,8 @@ __device__  void performNormalMove(
 	}
 }
 
-
+// wykonanie bicia pionkiem
+// w przypadku bicia wielokrotnego kolejne posuniecia sa losowane
 __device__  void performPawnCapture(
 	uint32_t& seed,
 	uint32_t& player_pawns,
@@ -520,7 +523,8 @@ __device__  void performPawnCapture(
 		player_pawns |= 1 << final_to;
 }
 
-
+// wykonywany jest wyloswany ruch damką
+// w przypadku bicia wielokrotnego kolejne posuniecia sa losowane
 __device__  void perfromKingCapture(
 	uint32_t& seed,
 	uint32_t& player_pawns,
@@ -570,7 +574,7 @@ __device__  void perfromKingCapture(
 
 }
 
-
+// wykonanie wylosowanego ruchu
 __device__ void performMove(
 	uint32_t& player_pawns,
 	uint32_t& player_kings,
@@ -713,7 +717,7 @@ __device__ bool simulate(
 
 }
 
-
+// dodatkowe przemieszanie seedu
 __device__ __forceinline__ uint32_t makeSeed(uint32_t base, uint32_t tid) {
 	uint32_t x = base ^ (tid * 0x9E3779B9u);  
 	x ^= x >> 16;
@@ -724,7 +728,7 @@ __device__ __forceinline__ uint32_t makeSeed(uint32_t base, uint32_t tid) {
 	return x | 1u;
 }
 
-
+// zsumowanie wetora do jednej komorki
 __device__ void reduce(int16_t* to_sum, uint16_t size, uint32_t* save) {
 	for (uint16_t stride = (size + 1) >> 1; stride > 0; stride = (stride + 1) >> 1) {
 		uint16_t i = (uint16_t)threadIdx.x;
@@ -750,6 +754,7 @@ __device__ void reduce(int16_t* to_sum, uint16_t size, uint32_t* save) {
 	}
 }
 
+// glowna kernel MCTS
 __global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t seed_cpu, int moves_without_progres) {
 	__shared__ int16_t winner[THREADS];
 
@@ -776,6 +781,7 @@ __global__ void mctsKernel(Board* b, uint32_t* ret, bool is_white_move, uint32_t
 	reduce(winner, THREADS, ret);
 }
 
+// kernel sumajcy wyniki z blokow
 __global__ void reduceKernel(uint32_t* to_sum, uint16_t size) {
 	for (uint32_t stride = (size + 1) >> 1; stride > 0; stride = (stride + 1) >> 1) {
 		uint32_t i = (uint32_t)threadIdx.x;
@@ -796,7 +802,7 @@ __global__ void reduceKernel(uint32_t* to_sum, uint16_t size) {
 		if (size == 1) break;
 	}
 }
-
+// funkcja ustaiajca wartosci tablic w kernelu
 cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint32_t(&Rays)[32][4]) {
 	cudaError_t st;
 
@@ -815,7 +821,7 @@ cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4],
 
 }
 
-
+// funkcja uruchamiajaca MCTS na GPU i zwracajaca liczbe wygranych bialych
 uint32_t runMCTS(Board* dev_board, uint32_t* dev_ret,  Color color, uint32_t seed, int moves_without_progres) {
 
 	cudaError_t cs;
@@ -840,7 +846,6 @@ uint32_t runMCTS(Board* dev_board, uint32_t* dev_ret,  Color color, uint32_t see
 	if (cs != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy failed: %s\n", cudaGetErrorString(cs));
 	}
-
 
 	return ret;
 }
