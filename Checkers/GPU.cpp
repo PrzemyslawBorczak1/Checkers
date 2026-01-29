@@ -24,6 +24,11 @@ void GPU::gpuPrelude(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint3
 		exitError("cudaMalloc dev_board failed!\n", cs);
 	}
 
+	 cs = cudaMalloc((void**)&dev_ret, BLOCKS * sizeof(uint32_t));
+	if (cs != cudaSuccess) {
+		exitError("cudaMalloc dev_ret failed!\n", cs);
+	}
+
 }
 
 
@@ -48,7 +53,7 @@ int GPU::simulate(Board board, Color color, uint32_t seed, int moves_without_pro
 	}
 	char* d_ret = nullptr;
 
-	uint32_t ret = runMCTS(dev_board, color, seed, moves_without_progress);
+	uint32_t ret = runMCTS(dev_board, dev_ret, color, seed, moves_without_progress);
 	return ret;
 }
 

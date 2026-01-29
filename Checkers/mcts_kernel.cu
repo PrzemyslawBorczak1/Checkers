@@ -811,16 +811,14 @@ cudaError_t mctsSetSymbols(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4],
 	st = cudaMemcpyToSymbol(RAYS, Rays, sizeof(Rays));
 	if (st != cudaSuccess) return st;
 
+	return cudaSuccess;
+
 }
 
 
-uint32_t runMCTS(Board* dev_board, Color color, uint32_t seed, int moves_without_progres) {
+uint32_t runMCTS(Board* dev_board, uint32_t* dev_ret,  Color color, uint32_t seed, int moves_without_progres) {
 
-	uint32_t* dev_ret = nullptr;
-	cudaError_t cs = cudaMalloc((void**)&dev_ret, BLOCKS * sizeof(uint32_t));
-	if (cs != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc dev_ret failed: %s\n", cudaGetErrorString(cs));
-	}
+	cudaError_t cs;
 	bool is_white_move = (color == Color::WHITE);
 	mctsKernel<<<BLOCKS,THREADS>>>(dev_board, dev_ret, is_white_move, seed, moves_without_progres);
 

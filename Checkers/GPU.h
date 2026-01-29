@@ -4,6 +4,7 @@
 class GPU {
 public:
 	Board* dev_board;
+	uint32_t* dev_ret;
 
 
     static GPU& getInstance(int8_t(&Neighbours)[32][4], int8_t(&Captures)[32][4], uint32_t(&Rays)[32][4]);

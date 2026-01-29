@@ -13,7 +13,8 @@
 
 typedef struct {
     const char* file;   // argv[1]
-    int time_sec;       // argv[2]
+    int time_white;     // argv[2] T1
+    int time_black;     // argv[2] T2
     int game_type;      // argv[3] 0/1/2
     Color color;        // argv[4] 0/1
 } Options;
@@ -22,12 +23,13 @@ void usage(void) {
     printf(
         "checkers file time game_type color\n"
         " file       plik zapisu partii (np. game.txt)\n"
-        " time       limit czasu na ruch w sekundach (>0)\n"
+        " time       limit czasu na ruch w sekundach format T1:T2 (czas dla bialego i czas dla czarnego gracza)\n"
         " game_type  0 = czlowiek-czlowiek, 1 = czlowiek-komputer, 2 = komputer-komputer\n"
         " color      0 = biale, 1 = czarne  (w trybie 1 to kolor czlowieka)\n"
         "\n"
     );
 }
+
 
 // funkcja pomocnicza do parsowania argumentow komendy 
 int parseInt(const char* s, int* out) {
@@ -45,6 +47,36 @@ int parseInt(const char* s, int* out) {
     return 1;
 }
 
+// parsowanie czasu w formacie T1:T2
+int parseTime(char* s, int* out_white, int* out_black) {
+    if (s == NULL || s[0] == '\0') return 0;
+
+    char* colon = strchr(s, ':');
+    if (!colon) return 0;                
+    if (colon == s) return 0;             
+    if (colon[1] == '\0') return 0;      
+    if (strchr(colon + 1, ':')) return 0;
+
+    size_t left_len = (size_t)(colon - s);
+    char left[32], right[32];
+
+    if (left_len >= sizeof(left)) return 0;
+    memcpy(left, s, left_len);
+    left[left_len] = '\0';
+
+    if (strlen(colon + 1) >= sizeof(right)) return 0;
+    strcpy(right, colon + 1);
+
+    int tw, tb;
+    if (!parseInt(left, &tw) || tw <= 0) return 0;
+    if (!parseInt(right, &tb) || tb <= 0) return 0;
+
+    *out_white = tw;
+    *out_black = tb;
+    return 1;
+}
+
+
 int parseArgs(int argc, char** argv, Options* opt) {
 
     if (argc != 5) {
@@ -60,8 +92,8 @@ int parseArgs(int argc, char** argv, Options* opt) {
         return 0;
     }
 
-    if (!parseInt(argv[2], &opt->time_sec) || opt->time_sec <= 0) {
-        printf("Blad: time musi byc liczba calkowita > 0.\n\n");
+    if (!parseTime(argv[2], &opt->time_white, &opt->time_black)) {
+        printf("Blad: time musi byc liczba calkowita > 0 w formacie T1:T2\n\n");
         usage();
         return 0;
     }
@@ -143,7 +175,7 @@ void appendMove(char* all_moves_str, int* len, char* move_str)
 void printGameSettings(Options opt, bool white_is_human, bool black_is_human) {
     printf("\n=== Checkers: start gry ===\n");
     printf("  plik zapisu : %s\n", opt.file);
-    printf("  czas/ruch   : %d s\n", opt.time_sec);
+    printf("  czas/ruch   : biale=%d s, czarne=%d s\n", opt.time_white, opt.time_black);
     printf("  tryb gry    : %d (%s)\n",
         opt.game_type,
         (opt.game_type == 0) ? "czlowiek-czlowiek" :
@@ -158,6 +190,7 @@ void printGameSettings(Options opt, bool white_is_human, bool black_is_human) {
     printf("===========================\n\n");
 }
 
+
 static inline int popcount(uint32_t x)
 {
     int c = 0;
@@ -170,6 +203,17 @@ static inline int popcount(uint32_t x)
 
 int main(int argc, char** argv) {
     
+    static char* test_argv[] = {
+     (char*)"checkers",
+     (char*)"game.txt",
+     (char*)"2:3",
+     (char*)"2",
+     (char*)"0",
+     NULL
+    };
+
+    argv = test_argv;
+    argc = 5;
     
 
     Options opt;
@@ -186,12 +230,12 @@ int main(int argc, char** argv) {
 
     Player* white_player = white_is_human ?
         (Player*)new HumanPlayer(Color::WHITE) :
-		(Player*)new MCTSPlayer(Color::WHITE, opt.time_sec);
+		(Player*)new MCTSPlayer(Color::WHITE, opt.time_white);
 
 
     Player* black_player = black_is_human ?
 		(Player*)new HumanPlayer(Color::BLACK) :
-		(Player*)new MCTSPlayer(Color::BLACK, opt.time_sec);
+		(Player*)new MCTSPlayer(Color::BLACK, opt.time_black);
 
 
     Color side_to_move = Color::WHITE;
